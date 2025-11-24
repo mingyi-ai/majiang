@@ -524,4 +524,28 @@ mod tests {
         vec![],
         vec![]
     ) => Err(HandError::ActionError("Invalid hand: more than 4 of the same tile")));
+    #[test]
+    fn test_possible_chows() {
+        let hand = Hand {
+            tiles: vec![
+                Dot2, Dot3, Dot4, Dot6, Dot7, Dot8, Bamboo2, Bamboo3, Bamboo5,
+                Bamboo6,
+            ],
+            melds: vec![],
+            flowers: vec![],
+        };
+        let chows_for_dot5 = hand.possible_chows(Dot5);
+        println!("{:?}", chows_for_dot5);
+        assert_eq!(chows_for_dot5.len(), 3);
+        assert!(chows_for_dot5.contains(&[Dot3, Dot4]));
+        assert!(chows_for_dot5.contains(&[Dot6, Dot7]));
+        assert!(chows_for_dot5.contains(&[Dot4, Dot6]));
+
+        let chows_for_dot1 = hand.possible_chows(Dot1);
+        assert_eq!(chows_for_dot1.len(), 1);
+        assert!(chows_for_dot1.contains(&[Dot2, Dot3]));
+
+        let chows_for_honor = hand.possible_chows(East);
+        assert_eq!(chows_for_honor.len(), 0);
+    }
 }

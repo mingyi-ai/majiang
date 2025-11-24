@@ -127,10 +127,17 @@ impl Engine {
                 }
             }
             Phase::ExecuteDraw => {
-                let drawn = self.round.execute_draw()?;
-                let event = EngineEvent::from(PlayerAction::from(drawn));
-                turn_events.push(event.clone());
-                event
+                let drawn = self.round.execute_draw().unwrap_or_default();
+                if drawn.is_empty() {
+                    let event = EngineEvent::RoundEnded { winner: None };
+                    turn_events.push(event.clone());
+                    self.round.phase = Phase::RoundEnded;
+                    event
+                } else {
+                    let event = EngineEvent::from(PlayerAction::from(drawn));
+                    turn_events.push(event.clone());
+                    event
+                }
             }
             Phase::RequestSelfAction => {
                 let requests = self.round.request_self_action().unwrap();
@@ -156,10 +163,19 @@ impl Engine {
                 event
             }
             Phase::ExecuteKongRepl => {
-                let repl_tiles = self.round.execute_kong_repl().unwrap();
-                let event = EngineEvent::from(PlayerAction::from(repl_tiles));
-                turn_events.push(event.clone());
-                event
+                let repl_tiles =
+                    self.round.execute_kong_repl().unwrap_or_default();
+                if repl_tiles.is_empty() {
+                    let event = EngineEvent::RoundEnded { winner: None };
+                    turn_events.push(event.clone());
+                    self.round.phase = Phase::RoundEnded;
+                    event
+                } else {
+                    let event =
+                        EngineEvent::from(PlayerAction::from(repl_tiles));
+                    turn_events.push(event.clone());
+                    event
+                }
             }
             Phase::RequestDiscard => {
                 let requests = self.round.request_discard().unwrap();

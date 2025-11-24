@@ -1,6 +1,7 @@
 use mahjong_core::engine::{Engine, EngineInput, PlayerId, SeatingPlan};
 use mahjong_core::event::{EngineEvent, Reaction};
-use mahjong_core::helper::TerminalChoiceExt;
+mod helper;
+use helper::TerminalChoiceExt;
 use mahjong_core::round::Wind;
 use std::collections::HashMap;
 use std::io::{self, Write};

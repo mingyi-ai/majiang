@@ -569,3 +569,40 @@ impl RoundState {
         Ok(ProceedToNextTurn { seat: self.turn })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tile::Tile::*;
+    #[test]
+    fn test_possible_reactions_by_seat() {
+        let mut round = RoundState::new(Wind::East);
+        // set up hands for testing
+        round.seats.get_mut(Wind::South).hand.tiles =
+            vec![Dot2, Dot3, Dot5, Dot6];
+        round.turn = Wind::East;
+        let tile = Dot4;
+        let reactions_south =
+            round.possible_reactions_by_seat(Wind::South, tile).unwrap();
+
+        assert_eq!(reactions_south.len(), 4);
+        assert!(reactions_south.contains(&Reaction::Chow {
+            seat: Wind::South,
+            tile,
+            from: Wind::East,
+            chow: [Dot2, Dot3]
+        }));
+        assert!(reactions_south.contains(&Reaction::Chow {
+            seat: Wind::South,
+            tile,
+            from: Wind::East,
+            chow: [Dot3, Dot5]
+        }));
+        assert!(reactions_south.contains(&Reaction::Chow {
+            seat: Wind::South,
+            tile,
+            from: Wind::East,
+            chow: [Dot5, Dot6]
+        }));
+    }
+}
