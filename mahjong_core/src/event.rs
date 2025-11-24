@@ -3,19 +3,19 @@ use std::collections::HashMap;
 use crate::round::Wind;
 use crate::tile::Tile;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlayerDraw {
     pub seat: Wind,
     pub tile: Tile,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlayerDiscard {
     pub seat: Wind,
     pub tile: Tile,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelfAction {
     ConcealedKong { seat: Wind, tile: Tile },
     AddedKong { seat: Wind, tile: Tile },
@@ -40,7 +40,7 @@ impl SelfAction {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Reaction {
     Skip {
         seat: Wind,
@@ -123,7 +123,7 @@ impl From<Reaction> for PlayerAction {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ProceedToNextTurn {
     pub seat: Wind,
 }
