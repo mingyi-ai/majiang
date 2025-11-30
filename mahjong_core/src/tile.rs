@@ -1,72 +1,77 @@
-use rand::seq::SliceRandom;
-
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum TileType {
+    Character,
     Dot,
     Bamboo,
-    Character,
     Wind,
     Dragon,
     Flower,
 }
 
+#[derive(Debug)]
+pub enum TileError {
+    ConversionError(&'static str),
+}
+
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, PartialOrd, Ord)]
+/// Mahjong tiles represented with sparse patterns
+/// optimized for bitwise operations.
 pub enum Tile {
-    // Dots
-    Dot1 = 0,
-    Dot2,
-    Dot3,
-    Dot4,
-    Dot5,
-    Dot6,
-    Dot7,
-    Dot8,
-    Dot9,
+    // Characters (Wan) - Row 0
+    Character1 = 0,
+    Character2 = 4,
+    Character3 = 8,
+    Character4 = 12,
+    Character5 = 16,
+    Character6 = 20,
+    Character7 = 24,
+    Character8 = 28,
+    Character9 = 32,
 
-    // Bamboo
-    Bamboo1 = 9,
-    Bamboo2,
-    Bamboo3,
-    Bamboo4,
-    Bamboo5,
-    Bamboo6,
-    Bamboo7,
-    Bamboo8,
-    Bamboo9,
+    // Dots (Tong) - Row 1 (Offset 64)
+    Dot1 = 64,
+    Dot2 = 68,
+    Dot3 = 72,
+    Dot4 = 76,
+    Dot5 = 80,
+    Dot6 = 84,
+    Dot7 = 88,
+    Dot8 = 92,
+    Dot9 = 96,
 
-    // Characters
-    Character1 = 18,
-    Character2,
-    Character3,
-    Character4,
-    Character5,
-    Character6,
-    Character7,
-    Character8,
-    Character9,
+    // Bamboo (Tiao) - Row 2 (Offset 128)
+    Bamboo1 = 128,
+    Bamboo2 = 132,
+    Bamboo3 = 136,
+    Bamboo4 = 140,
+    Bamboo5 = 144,
+    Bamboo6 = 148,
+    Bamboo7 = 152,
+    Bamboo8 = 156,
+    Bamboo9 = 160,
 
-    // Winds
-    East = 27,
-    South,
-    West,
-    North,
+    // Winds - Row 3 (Offset 192)
+    East = 192,
+    South = 196,
+    West = 200,
+    North = 204,
 
-    // Dragons
-    Red = 31,
-    Green,
-    White,
+    // Dragons - Row 3
+    Red = 208,
+    Green = 212,
+    White = 216,
 
-    // Flowers (MCR uses 8)
-    Plum = 34,
-    Orchid,
-    Chrysanthemum,
-    BambooF,
-    Spring,
-    Summer,
-    Autumn,
-    Winter,
+    // Flowers - Row 3 (Offset 220, 4 bits each)
+    Plum = 220,
+    Orchid = 224,
+    BambooF = 228,
+    Chrysanthemum = 232,
+    Spring = 236,
+    Summer = 240,
+    Autumn = 244,
+    Winter = 248,
 }
 
 impl Tile {
@@ -75,6 +80,16 @@ impl Tile {
     pub const MCR_SET_COUNT: usize = 144;
 
     pub const ALL: [Tile; Tile::COUNT] = [
+        // Characters
+        Tile::Character1,
+        Tile::Character2,
+        Tile::Character3,
+        Tile::Character4,
+        Tile::Character5,
+        Tile::Character6,
+        Tile::Character7,
+        Tile::Character8,
+        Tile::Character9,
         // Dots
         Tile::Dot1,
         Tile::Dot2,
@@ -95,16 +110,6 @@ impl Tile {
         Tile::Bamboo7,
         Tile::Bamboo8,
         Tile::Bamboo9,
-        // Characters
-        Tile::Character1,
-        Tile::Character2,
-        Tile::Character3,
-        Tile::Character4,
-        Tile::Character5,
-        Tile::Character6,
-        Tile::Character7,
-        Tile::Character8,
-        Tile::Character9,
         // Winds
         Tile::East,
         Tile::South,
@@ -117,14 +122,15 @@ impl Tile {
         // Flowers
         Tile::Plum,
         Tile::Orchid,
-        Tile::Chrysanthemum,
         Tile::BambooF,
+        Tile::Chrysanthemum,
         Tile::Spring,
         Tile::Summer,
         Tile::Autumn,
         Tile::Winter,
     ];
 
+    #[inline]
     pub fn iter_all() -> impl Iterator<Item = Tile> {
         Self::ALL.iter().copied()
     }
@@ -134,34 +140,102 @@ impl Tile {
         self as u8
     }
 
-    pub fn from_usize(value: usize) -> Option<Self> {
+    #[inline]
+    pub fn from_id(value: u8) -> Result<Self, TileError> {
+        let row = (value >> 6) as usize;
+        let shift = (value & 0x3F) as usize;
+
+        let tile = Self::from_indices(row, shift)?;
+        Ok(tile)
+    }
+
+    #[inline]
+    pub fn from_indices(row: usize, shift: usize) -> Result<Self, TileError> {
+        if row > 3 {
+            return Err(TileError::ConversionError("Row index out of range"));
+        }
+        if !shift.is_multiple_of(4) {
+            return Err(TileError::ConversionError("Shift not multiple of 4"));
+        }
+        if (row < 3 && shift >= 36) || (row == 3 && shift >= 60) {
+            return Err(TileError::ConversionError(
+                "Shift out of range for row",
+            ));
+        }
+        let id = (row << 6) as u8 | shift as u8;
+        Ok(unsafe { std::mem::transmute::<u8, Self>(id) })
+    }
+
+    #[inline]
+    pub fn from_dense_index(value: usize) -> Option<Self> {
         Self::ALL.get(value).copied()
     }
 
+    #[inline]
     pub fn get_type(self) -> TileType {
         let id = self.id();
         match id {
-            0..=8 => TileType::Dot,
-            9..=17 => TileType::Bamboo,
-            18..=26 => TileType::Character,
-            27..=30 => TileType::Wind,
-            31..=33 => TileType::Dragon,
-            34..=41 => TileType::Flower,
+            0..=32 => TileType::Character,
+            64..=96 => TileType::Dot,
+            128..=160 => TileType::Bamboo,
+            192..=204 => TileType::Wind,
+            208..=216 => TileType::Dragon,
+            220..=227 => TileType::Flower,
             _ => unreachable!(),
         }
     }
 
     #[inline]
     pub fn is_flower(self) -> bool {
-        (self as u8) >= 34
+        (self as u8) >= 220
     }
 
-    #[inline]
-    pub fn is_suited(self) -> bool {
-        matches!(
-            self.get_type(),
-            TileType::Dot | TileType::Bamboo | TileType::Character
-        )
+    /// Returns the dense index (0..41) for array indexing.
+    pub fn dense_index(self) -> usize {
+        match self {
+            Tile::Character1 => 0,
+            Tile::Character2 => 1,
+            Tile::Character3 => 2,
+            Tile::Character4 => 3,
+            Tile::Character5 => 4,
+            Tile::Character6 => 5,
+            Tile::Character7 => 6,
+            Tile::Character8 => 7,
+            Tile::Character9 => 8,
+            Tile::Dot1 => 9,
+            Tile::Dot2 => 10,
+            Tile::Dot3 => 11,
+            Tile::Dot4 => 12,
+            Tile::Dot5 => 13,
+            Tile::Dot6 => 14,
+            Tile::Dot7 => 15,
+            Tile::Dot8 => 16,
+            Tile::Dot9 => 17,
+            Tile::Bamboo1 => 18,
+            Tile::Bamboo2 => 19,
+            Tile::Bamboo3 => 20,
+            Tile::Bamboo4 => 21,
+            Tile::Bamboo5 => 22,
+            Tile::Bamboo6 => 23,
+            Tile::Bamboo7 => 24,
+            Tile::Bamboo8 => 25,
+            Tile::Bamboo9 => 26,
+            Tile::East => 27,
+            Tile::South => 28,
+            Tile::West => 29,
+            Tile::North => 30,
+            Tile::Red => 31,
+            Tile::Green => 32,
+            Tile::White => 33,
+            Tile::Plum => 34,
+            Tile::Orchid => 35,
+            Tile::BambooF => 36,
+            Tile::Chrysanthemum => 37,
+            Tile::Spring => 38,
+            Tile::Summer => 39,
+            Tile::Autumn => 40,
+            Tile::Winter => 41,
+        }
     }
 
     pub fn name(self) -> &'static str {
@@ -220,47 +294,5 @@ impl Tile {
             Tile::Autumn => "Autumn",
             Tile::Winter => "Winter",
         }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Wall(Vec<Tile>);
-
-impl Wall {
-    pub fn new_mcr() -> Self {
-        let mut tiles: Vec<Tile> = Vec::with_capacity(Tile::MCR_SET_COUNT);
-        for tile in Tile::iter_all() {
-            let count: u8 = if tile.is_flower() { 1 } else { 4 };
-            for _ in 0..count {
-                tiles.push(tile);
-            }
-        }
-        Wall(tiles)
-    }
-
-    pub fn shuffle(&mut self) {
-        self.0.shuffle(&mut rand::rng());
-    }
-
-    pub fn draw(&mut self) -> Option<Tile> {
-        self.0.pop()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn test_new_mcr_wall() {
-        let wall = Wall::new_mcr();
-        assert_eq!(wall.0.len(), Tile::MCR_SET_COUNT);
-    }
-
-    #[test]
-    fn test_draw_tile() {
-        let mut wall = Wall::new_mcr();
-        let tile = wall.draw();
-        assert_eq!(tile, Some(Tile::Winter));
-        assert_eq!(wall.0.len(), Tile::MCR_SET_COUNT - 1);
     }
 }

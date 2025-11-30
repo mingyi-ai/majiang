@@ -1,3 +1,4 @@
+use mahjong_core::bits::MahjongBitArray;
 use mahjong_core::engine::{Engine, EngineInput, PlayerId, SeatingPlan};
 use mahjong_core::event::{EngineEvent, Reaction};
 mod helper;
@@ -46,7 +47,13 @@ fn main() {
                 } else {
                     println!(
                         "Your hand: {:?}",
-                        engine.round.seats.get(engine.round.turn).hand
+                        engine
+                            .round
+                            .seats
+                            .get(engine.round.turn)
+                            .hand
+                            .tiles
+                            .to_non_flower_tiles()
                     );
                     let chosen = self_actions
                         .as_slice()
@@ -73,7 +80,13 @@ fn main() {
                 } else {
                     println!(
                         "Your hand: {:?}",
-                        engine.round.seats.get(engine.round.turn).hand
+                        engine
+                            .round
+                            .seats
+                            .get(engine.round.turn)
+                            .hand
+                            .tiles
+                            .to_non_flower_tiles()
                     );
                     let chosen = discard_options
                         .as_slice()
@@ -117,7 +130,13 @@ fn main() {
                     println!(
                         "Hand for {:?}: {:?}",
                         seat,
-                        engine.round.seats.get(seat).hand
+                        engine
+                            .round
+                            .seats
+                            .get(seat)
+                            .hand
+                            .tiles
+                            .to_non_flower_tiles()
                     );
                     chosen.push(
                         seat_options

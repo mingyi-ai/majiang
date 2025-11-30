@@ -2,8 +2,7 @@ use std::ops::Index;
 
 use crate::{
     event::{EngineEvent, PlayerAction, PlayerDiscard, Reaction, SelfAction},
-    hand::HandError,
-    round::{Phase, RoundState, Wind},
+    round::{HandError, Phase, RoundState, Wind},
 };
 
 #[derive(Debug, Clone)]
@@ -161,21 +160,6 @@ impl Engine {
                 let event = EngineEvent::from(PlayerAction::from(reaction));
                 turn_events.push(event.clone());
                 event
-            }
-            Phase::ExecuteKongRepl => {
-                let repl_tiles =
-                    self.round.execute_kong_repl().unwrap_or_default();
-                if repl_tiles.is_empty() {
-                    let event = EngineEvent::RoundEnded { winner: None };
-                    turn_events.push(event.clone());
-                    self.round.phase = Phase::RoundEnded;
-                    event
-                } else {
-                    let event =
-                        EngineEvent::from(PlayerAction::from(repl_tiles));
-                    turn_events.push(event.clone());
-                    event
-                }
             }
             Phase::RequestDiscard => {
                 let requests = self.round.request_discard().unwrap();
