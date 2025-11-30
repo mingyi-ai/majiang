@@ -1,7 +1,12 @@
 use std::collections::{HashMap, HashSet};
+use std::vec;
 
-use crate::hand::{Hand, HandError};
-use crate::tile::{Tile, Wall};
+use rand::seq::SliceRandom;
+
+use crate::bit_hand::Hand;
+pub use crate::bit_hand::HandError;
+use crate::bits::{BitArray, MahjongBitArray};
+use crate::tile::Tile;
 
 use crate::event::{
     PlayerDiscard, PlayerDraw, ProceedToNextTurn, Reaction, ReactionRequests,
@@ -32,10 +37,60 @@ impl Wind {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct Wall {
+    pub tiles: [Tile; 144],
+    pointer: usize,
+}
+
+impl Wall {
+    const LEN: usize = 144;
+
+    #[inline]
+    pub fn new_mcr() -> Self {
+        let mut tiles: [Tile; 144] = [Tile::Character1; 144];
+        let mut idx = 0;
+        for tile in Tile::iter_all() {
+            let count = if tile.is_flower() { 1 } else { 4 };
+            for _ in 0..count {
+                tiles[idx] = tile;
+                idx += 1;
+            }
+        }
+        // No shuffling for now; deterministic wall
+        Self { tiles, pointer: 0 }
+    }
+
+    #[inline]
+    pub fn shuffle(&mut self) {
+        let mut rng = rand::rng();
+        self.tiles.shuffle(&mut rng);
+    }
+
+    /// Yields the next tile from the wall, if available.
+    /// Advances the wall pointer.
+    #[inline]
+    pub fn yield_tile(&mut self) -> Option<Tile> {
+        if self.pointer >= Self::LEN {
+            return None;
+        }
+        let tile = self.tiles[self.pointer];
+        self.pointer += 1;
+        Some(tile)
+    }
+
+    pub fn get_last_drawn_tile(&self) -> Option<Tile> {
+        if self.pointer == 0 {
+            return None;
+        }
+        Some(self.tiles[self.pointer - 1])
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Seat {
     pub hand: Hand,
-    pub discards: Vec<Tile>,
+    pub discards: BitArray,
 }
 
 #[derive(Debug, Clone)]
@@ -72,7 +127,6 @@ pub enum Phase {
     RequestSelfAction,
     ExecuteSelfAction,
     ExecuteReaction,
-    ExecuteKongRepl,
     RequestDiscard,
     ExecuteDiscard,
     RequestReaction,
@@ -102,19 +156,19 @@ impl RoundState {
         let seats: Seats = Seats {
             east: Seat {
                 hand: Hand::default(),
-                discards: Vec::new(),
+                discards: BitArray::default(),
             },
             south: Seat {
                 hand: Hand::default(),
-                discards: Vec::new(),
+                discards: BitArray::default(),
             },
             west: Seat {
                 hand: Hand::default(),
-                discards: Vec::new(),
+                discards: BitArray::default(),
             },
             north: Seat {
                 hand: Hand::default(),
-                discards: Vec::new(),
+                discards: BitArray::default(),
             },
         };
 
@@ -133,13 +187,43 @@ impl RoundState {
         }
     }
 
+    pub fn draw_tile_to_seat(
+        &mut self,
+        seat: Wind,
+    ) -> Result<Tile, HandError> {
+        let tile = self
+            .wall
+            .yield_tile()
+            .ok_or(HandError::DrawError("Wall is empty"))?;
+        let success = self.seats.get_mut(seat).hand.tiles.add_tile(tile.id());
+        if !success {
+            return Err(HandError::DrawError("Failed to add tile to hand"));
+        }
+        Ok(tile)
+    }
+
+    pub fn draw_initial_hand(
+        &mut self,
+        seat: Wind,
+    ) -> Result<Vec<Tile>, HandError> {
+        let mut drawn_tiles: Vec<Tile> = Vec::new();
+        let mut non_flower_count = 13;
+        while non_flower_count > 0 {
+            let tile = self.draw_tile_to_seat(seat)?;
+            drawn_tiles.push(tile);
+            if !tile.is_flower() {
+                non_flower_count -= 1;
+            }
+        }
+        Ok(drawn_tiles)
+    }
+
     pub fn deal_initial_hands(
         &mut self,
     ) -> Result<Vec<PlayerDraw>, HandError> {
         let mut dealt_tiles: Vec<PlayerDraw> = Vec::new();
         for seat_wind in Wind::iter() {
-            let seat = self.seats.get_mut(seat_wind);
-            let drawn = seat.hand.draw_initial_hand(&mut self.wall)?;
+            let drawn = self.draw_initial_hand(seat_wind)?;
             for tile in drawn {
                 dealt_tiles.push(PlayerDraw {
                     seat: seat_wind,
@@ -154,10 +238,14 @@ impl RoundState {
     }
 
     pub fn execute_draw(&mut self) -> Result<Vec<PlayerDraw>, HandError> {
-        let seat = &mut self.seats.get_mut(self.turn);
-        let wall = &mut self.wall;
-
-        let drawn: Vec<Tile> = seat.hand.draw(wall)?;
+        let mut drawn: Vec<Tile> = vec![];
+        loop {
+            let tile = self.draw_tile_to_seat(self.turn)?;
+            drawn.push(tile);
+            if !tile.is_flower() {
+                break;
+            }
+        }
 
         if drawn.is_empty() {
             return Err(HandError::DrawError("empty draw"));
@@ -202,15 +290,25 @@ impl RoundState {
     ) -> Result<Vec<SelfAction>, HandError> {
         let mut actions: Vec<SelfAction> = Vec::new();
 
-        for tile in self.seats.get(seat).hand.possible_concealed_kong() {
-            actions.push(SelfAction::ConcealedKong { seat, tile });
+        let concealed_kong_mask =
+            self.seats.get(seat).hand.possible_concealed_kong();
+        if concealed_kong_mask != [0; 4] {
+            let tiles = concealed_kong_mask.to_unique_tiles();
+            for tile in tiles {
+                actions.push(SelfAction::ConcealedKong { seat, tile });
+            }
         }
 
-        for tile in self.seats.get(seat).hand.possible_kong_from_pong() {
-            actions.push(SelfAction::AddedKong { seat, tile });
+        let added_kong_mask =
+            self.seats.get(seat).hand.possible_kong_from_pong();
+        if added_kong_mask != [0; 4] {
+            let tiles = added_kong_mask.to_unique_tiles();
+            for tile in tiles {
+                actions.push(SelfAction::AddedKong { seat, tile });
+            }
         }
 
-        if Hand::can_hu_self(&self.seats.get(seat).hand)? {
+        if self.seats.get(seat).hand.can_hu_self() {
             let drawn_tile = self.last_drawn_tile_ref.ok_or(
                 HandError::ActionError("Last drawn tile reference is None"),
             )?;
@@ -256,11 +354,11 @@ impl RoundState {
         match action {
             SelfAction::ConcealedKong { seat, tile } => {
                 self.seats.get_mut(seat).hand.concealed_kong(tile);
-                self.phase = Phase::ExecuteKongRepl;
+                self.phase = Phase::ExecuteDraw;
             }
             SelfAction::AddedKong { seat, tile } => {
                 self.seats.get_mut(seat).hand.added_kong(tile);
-                self.phase = Phase::ExecuteKongRepl;
+                self.phase = Phase::ExecuteDraw;
             }
             SelfAction::HuSelf { seat, tile: _ } => {
                 self.winner = Some(seat);
@@ -288,7 +386,8 @@ impl RoundState {
                 from: _,
                 chow: tiles,
             } => {
-                self.seats.get_mut(seat).hand.chow(tile, tiles);
+                let start_tile = std::cmp::min(tile, tiles[0]);
+                self.seats.get_mut(seat).hand.chow(tile, start_tile);
                 self.phase = Phase::RequestDiscard;
             }
             Reaction::Pong {
@@ -305,7 +404,7 @@ impl RoundState {
                 tile,
             } => {
                 self.seats.get_mut(seat).hand.kong(tile);
-                self.phase = Phase::ExecuteKongRepl;
+                self.phase = Phase::ExecuteDraw;
             }
             Reaction::Hu {
                 seat,
@@ -325,29 +424,14 @@ impl RoundState {
         Ok(action)
     }
 
-    pub fn execute_kong_repl(&mut self) -> Result<Vec<PlayerDraw>, HandError> {
-        let seat = self.seats.get_mut(self.turn);
-        let wall = &mut self.wall;
-
-        let drawn = seat.hand.draw(wall)?;
-
-        self.phase = Phase::RequestDiscard;
-
-        Ok(drawn
-            .into_iter()
-            .map(|tile| PlayerDraw {
-                seat: self.turn,
-                tile,
-            })
-            .collect())
-    }
-
     pub fn request_discard(
         &mut self,
     ) -> Result<Vec<PlayerDiscard>, HandError> {
-        let unique_tiles: HashSet<Tile> = HashSet::from_iter(
-            self.seats.get(self.turn).hand.tiles.iter().cloned(),
-        );
+        let mut tiles_array = self.seats.get(self.turn).hand.tiles;
+
+        let unique_tiles = tiles_array
+            .bit_and(BitArray::NON_FLOWER_MASK)
+            .to_unique_tiles();
 
         let actions: Vec<PlayerDiscard> = unique_tiles
             .into_iter()
@@ -368,17 +452,18 @@ impl RoundState {
     ) -> Result<PlayerDiscard, HandError> {
         let seat = self.seats.get_mut(action.seat);
 
-        let _ = seat.hand.discard(action.tile)?;
+        let _ = seat.hand.tiles.remove_tile(action.tile.id());
 
         self.discard_buffer = Some(action.tile);
 
         let reaction_options = self.possible_reactions_all_seats()?;
 
         if reaction_options.is_empty() {
-            self.seats.get_mut(self.turn).discards.push(
+            self.seats.get_mut(self.turn).discards.add_tile(
                 self.discard_buffer
                     .take()
-                    .ok_or(HandError::ActionError("No tile to discard"))?,
+                    .ok_or(HandError::ActionError("No tile to discard"))?
+                    .id(),
             );
             self.turn = self.turn.next();
             self.phase = Phase::ExecuteDraw;
@@ -407,12 +492,32 @@ impl RoundState {
         // below is bug prone: no compiler check that all Reaction variants are covered
         // consider iterating over Reaction variants instead
         if seat == self.turn.next() {
-            for tiles in self.seats.get(seat).hand.possible_chows(tile) {
+            let chow_masks = self.seats.get(seat).hand.possible_chows(tile);
+            let chow_starting_tiles = chow_masks.to_unique_tiles();
+
+            for start_tile in chow_starting_tiles {
+                let id = start_tile.id() as usize;
+                let row = id >> 6;
+                let shift = id & 0x3F;
+
+                // We know these exist because possible_chows returned them
+                let t0 = start_tile;
+                let t1 = Tile::from_indices(row, shift + 4).unwrap();
+                let t2 = Tile::from_indices(row, shift + 8).unwrap();
+
+                let chow_tiles = if tile == t0 {
+                    [t1, t2]
+                } else if tile == t1 {
+                    [t0, t2]
+                } else {
+                    [t0, t1]
+                };
+
                 actions.push(Reaction::Chow {
                     seat,
                     tile,
                     from: self.turn,
-                    chow: tiles,
+                    chow: chow_tiles,
                 });
             }
         }
@@ -433,7 +538,7 @@ impl RoundState {
             });
         }
 
-        if self.seats.get(seat).hand.can_hu(tile)? {
+        if self.seats.get(seat).hand.can_hu(tile) {
             actions.push(Reaction::Hu {
                 seat,
                 from: self.turn,
@@ -558,10 +663,11 @@ impl RoundState {
             self.phase = Phase::ExecuteReaction;
         } else {
             self.pending_reaction = None;
-            self.seats.get_mut(self.turn).discards.push(
+            self.seats.get_mut(self.turn).discards.add_tile(
                 self.discard_buffer
                     .take()
-                    .ok_or(HandError::ActionError("No tile to discard"))?,
+                    .ok_or(HandError::ActionError("No tile to discard"))?
+                    .id(),
             );
             self.turn = self.turn.next();
             self.phase = Phase::ExecuteDraw;
@@ -573,13 +679,20 @@ impl RoundState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bits::MahjongBitArray;
     use crate::tile::Tile::*;
+
     #[test]
     fn test_possible_reactions_by_seat() {
         let mut round = RoundState::new(Wind::East);
         // set up hands for testing
-        round.seats.get_mut(Wind::South).hand.tiles =
-            vec![Dot2, Dot3, Dot5, Dot6];
+        {
+            let hand = &mut round.seats.get_mut(Wind::South).hand;
+            hand.tiles.add_tile(Dot2.id());
+            hand.tiles.add_tile(Dot3.id());
+            hand.tiles.add_tile(Dot5.id());
+            hand.tiles.add_tile(Dot6.id());
+        }
         round.turn = Wind::East;
         let tile = Dot4;
         let reactions_south =
