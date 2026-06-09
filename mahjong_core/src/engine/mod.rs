@@ -1,4 +1,9 @@
 mod actions;
+
+// define engine specific events and errors
+// engine atmoic step interface
+
+// below is the staled engine code, which is not used in the current implementation but may be useful for reference or future development.
 // use std::ops::Index;
 
 // use crate::{
