@@ -1,5 +1,5 @@
 #[repr(u8)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum TileType {
     Character,
     Dot,
@@ -17,10 +17,14 @@ impl TileType {
     pub(crate) fn is_honor(self) -> bool {
         matches!(self, Self::Wind | Self::Dragon)
     }
+
+    pub(crate) fn is_flower(self) -> bool {
+        self == Self::Flower
+    }
 }
 
 #[repr(u8)]
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 /// Mahjong tiles represented with sparse patterns
 /// optimized for bitwise operations.
 pub enum Tile {
@@ -133,6 +137,10 @@ impl Tile {
         Tile::Winter,
     ];
 
+    pub fn iter() -> impl Iterator<Item = Tile> {
+        Self::ALL.iter().copied()
+    }
+
     pub fn get_type(self) -> TileType {
         let offset = self as u8;
         match offset {
@@ -152,5 +160,9 @@ impl Tile {
 
     pub fn is_honor(self) -> bool {
         self.get_type().is_honor()
+    }
+
+    pub fn is_flower(self) -> bool {
+        self.get_type().is_flower()
     }
 }

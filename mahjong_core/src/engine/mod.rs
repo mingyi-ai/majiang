@@ -1,88 +1,44 @@
 mod actions;
+mod round;
 
-// define engine specific events and errors
-// engine atmoic step interface
+use crate::structs::Tile;
+pub use round::{Event, Phase, RoundState, Wind};
+use std::collections::HashMap;
 
-// below is the staled engine code, which is not used in the current implementation but may be useful for reference or future development.
-// use std::ops::Index;
+pub struct Engine {
+    pub round: RoundState,
+    request_buffer: Option<EngineOutput>,
+}
 
-// use crate::{
-//     event::{EngineEvent, PlayerAction, PlayerDiscard, Reaction, SelfAction},
-//     round::{HandError, Phase, RoundState, Wind},
-// };
+pub enum EngineOutput {
+    EventCommitted(Event),
+    NeedSelfAction { player: Wind, options: Vec<Event> },
+    NeedDiscard { player: Wind, options: Vec<Tile> },
+    NeedReactions { options: HashMap<Wind, Vec<Event>> },
+    RoundEnded { winner: Option<Wind> },
+}
 
-// #[derive(Debug, Clone)]
-// pub enum EngineInput {
-//     ChosenSelfAction(SelfAction),
-//     ChosenReactions(Vec<Reaction>),
-//     ChosenDiscard(PlayerDiscard),
-//     NextRound,
-//     Exit,
-// }
+pub enum EngineInput {
+    SelfAction(Event),
+    Discard(Tile),
+    Reactions(HashMap<Wind, Event>),
+}
 
-// #[derive(Debug, Clone, Copy)]
-// pub enum EngineError {
-//     InvalidAction,
-//     Hand(HandError),
-// }
+impl Engine {
+    pub fn new(round_wind: Wind) -> Self {
+        unimplemented!()
+    }
 
-// impl From<HandError> for EngineError {
-//     fn from(e: HandError) -> Self {
-//         EngineError::Hand(e)
-//     }
-// }
+    pub fn init_round(&mut self) {
+        unimplemented!()
+    }
 
-// pub type PlayerId = u32;
-
-// #[derive(Debug, Clone, Copy)]
-// pub struct SeatingPlan {
-//     pub east: PlayerId,
-//     pub south: PlayerId,
-//     pub west: PlayerId,
-//     pub north: PlayerId,
-// }
-
-// impl Index<Wind> for SeatingPlan {
-//     type Output = PlayerId;
-//     fn index(&self, w: Wind) -> &Self::Output {
-//         match w {
-//             Wind::East => &self.east,
-//             Wind::South => &self.south,
-//             Wind::West => &self.west,
-//             Wind::North => &self.north,
-//         }
-//     }
-// }
-
-// #[derive(Debug)]
-// pub struct Engine {
-//     pub round: RoundState,
-//     pub seating_plan: SeatingPlan,
-//     pub rounds_count: usize,
-//     pub last_round_wind: Wind,
-//     rounds_since_wind_change: usize,
-//     history: Vec<EngineEvent>,
-// }
+    pub fn step(&mut self, input: EngineInput) -> EngineOutput {
+        unimplemented!()
+    }
+}
 
 // impl Engine {
-//     pub fn new_human_vs_ai(
-//         round_wind: Wind,
-//         seating_plan: SeatingPlan,
-//     ) -> Self {
-//         Self {
-//             round: RoundState::new(round_wind),
-//             seating_plan,
-//             rounds_count: 0,
-//             last_round_wind: round_wind,
-//             rounds_since_wind_change: 0,
-//             history: Vec::new(),
-//         }
-//     }
-
-//     pub fn view_board(&self) -> &RoundState {
-//         &self.round
-//     }
-
 //     pub fn step(
 //         &mut self,
 //         input: Option<EngineInput>,

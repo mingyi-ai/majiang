@@ -1,156 +1,205 @@
-// old code, not deleted for reference; will be removed in the future
-// shall be refactored
+use crate::structs::{Hand, Tile};
+use rand::seq::SliceRandom;
 
-// use std::collections::{HashMap, HashSet};
-// use std::vec;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum Wind {
+    East,
+    South,
+    West,
+    North,
+}
 
-// use rand::seq::SliceRandom;
+impl Wind {
+    pub fn next(self) -> Self {
+        match self {
+            Wind::East => Wind::South,
+            Wind::South => Wind::West,
+            Wind::West => Wind::North,
+            Wind::North => Wind::East,
+        }
+    }
 
-// use crate::bit_hand::Hand;
-// pub use crate::bit_hand::HandError;
-// use crate::bits::{BitArray, MahjongBitArray};
-// use crate::tile::Tile;
+    pub fn iter() -> impl Iterator<Item = Wind> {
+        [Wind::East, Wind::South, Wind::West, Wind::North].into_iter()
+    }
+}
 
-// use crate::event::{
-//     PlayerDiscard, PlayerDraw, ProceedToNextTurn, Reaction, ReactionRequests,
-//     SelfAction,
-// };
+pub(crate) const WALL_SIZE: usize = 144;
 
-// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-// #[repr(u8)]
-// pub enum Wind {
-//     East,
-//     South,
-//     West,
-//     North,
-// }
+#[derive(Clone, Copy)]
+pub struct Wall {
+    tiles: [Tile; WALL_SIZE],
+    pointer: usize,
+}
 
-// impl Wind {
-//     pub fn next(self) -> Self {
-//         match self {
-//             Wind::East => Wind::South,
-//             Wind::South => Wind::West,
-//             Wind::West => Wind::North,
-//             Wind::North => Wind::East,
-//         }
-//     }
+impl Wall {
+    #[inline]
+    pub fn new_mcr() -> Self {
+        let mut tiles: [Tile; WALL_SIZE] = [Tile::Character1; WALL_SIZE];
+        let mut idx = 0;
+        for tile in Tile::iter() {
+            let count = if tile.is_flower() { 1 } else { 4 };
+            for _ in 0..count {
+                tiles[idx] = tile;
+                idx += 1;
+            }
+        }
+        // No shuffling for now; deterministic wall
+        Self { tiles, pointer: 0 }
+    }
 
-//     pub fn iter() -> impl Iterator<Item = Wind> {
-//         [Wind::East, Wind::South, Wind::West, Wind::North].into_iter()
-//     }
-// }
+    pub(crate) fn shuffle(&mut self) {
+        let mut rng = rand::rng();
+        self.tiles.shuffle(&mut rng);
+    }
 
-// #[derive(Debug, Clone, Copy)]
-// pub struct Wall {
-//     pub tiles: [Tile; 144],
-//     pointer: usize,
-// }
+    /// Yields the next tile from the wall, if available.
+    /// Advances the wall pointer.
+    pub(crate) fn yield_tile(&mut self) -> Option<Tile> {
+        if self.pointer >= WALL_SIZE {
+            return None;
+        }
+        let tile = self.tiles[self.pointer];
+        self.pointer += 1;
+        Some(tile)
+    }
 
-// impl Wall {
-//     const LEN: usize = 144;
+    pub(crate) fn get_last_drawn_tile(&self) -> Option<Tile> {
+        if self.pointer == 0 {
+            return None;
+        }
+        Some(self.tiles[self.pointer - 1])
+    }
+}
 
-//     #[inline]
-//     pub fn new_mcr() -> Self {
-//         let mut tiles: [Tile; 144] = [Tile::Character1; 144];
-//         let mut idx = 0;
-//         for tile in Tile::iter_all() {
-//             let count = if tile.is_flower() { 1 } else { 4 };
-//             for _ in 0..count {
-//                 tiles[idx] = tile;
-//                 idx += 1;
-//             }
-//         }
-//         // No shuffling for now; deterministic wall
-//         Self { tiles, pointer: 0 }
-//     }
+pub struct SeatState {
+    pub hand: Hand,
+    pub discards: [Option<Tile>; 32],
+}
 
-//     #[inline]
-//     pub fn shuffle(&mut self) {
-//         let mut rng = rand::rng();
-//         self.tiles.shuffle(&mut rng);
-//     }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Phase {
+    ExecuteDrawTile,
+    RequestSelfAction,
+    ExecuteSelfAction,
+    ExecuteReaction,
+    RequestDiscard,
+    ExecuteDiscard,
+    RequestReaction,
+    HandleReactions,
+}
 
-//     /// Yields the next tile from the wall, if available.
-//     /// Advances the wall pointer.
-//     #[inline]
-//     pub fn yield_tile(&mut self) -> Option<Tile> {
-//         if self.pointer >= Self::LEN {
-//             return None;
-//         }
-//         let tile = self.tiles[self.pointer];
-//         self.pointer += 1;
-//         Some(tile)
-//     }
+pub struct RoundState {
+    pub wind: Wind,
+    pub wall: Wall,
+    pub turn: Wind,
+    pub phase: Phase,
+    pub seats: [SeatState; 4],
+}
 
-//     pub fn get_last_drawn_tile(&self) -> Option<Tile> {
-//         if self.pointer == 0 {
-//             return None;
-//         }
-//         Some(self.tiles[self.pointer - 1])
-//     }
-// }
+#[derive(Debug, Clone, Copy)]
+pub enum Event {
+    // Auto-phase (engine-initiated draw)
+    DrawTile { seat: Wind, tile: Tile },
 
-// #[derive(Debug, Clone)]
-// pub struct Seat {
-//     pub hand: Hand,
-//     pub discards: BitArray,
-// }
+    // Self-actions (player chooses after drawing)
+    ConcealedKong { seat: Wind, tile: Tile },
+    AddedKong { seat: Wind, tile: Tile },
+    SelfHu { seat: Wind, tile: Tile },
+    SelfSkip,
 
-// #[derive(Debug, Clone)]
-// pub struct Seats {
-//     pub east: Seat,
-//     pub south: Seat,
-//     pub west: Seat,
-//     pub north: Seat,
-// }
+    // Reactions (other players respond to a discard)
+    Chow { seat: Wind, tile: Tile, from: Wind, chow: [Tile; 2] },
+    Pong { seat: Wind, from: Wind, tile: Tile },
+    Kong { seat: Wind, from: Wind, tile: Tile },
+    Hu { seat: Wind, from: Wind, tile: Tile },
+    ReactionSkip { seat: Wind },
 
-// impl Seats {
-//     pub fn get(&self, wind: Wind) -> &Seat {
-//         match wind {
-//             Wind::East => &self.east,
-//             Wind::South => &self.south,
-//             Wind::West => &self.west,
-//             Wind::North => &self.north,
-//         }
-//     }
-//     pub fn get_mut(&mut self, wind: Wind) -> &mut Seat {
-//         match wind {
-//             Wind::East => &mut self.east,
-//             Wind::South => &mut self.south,
-//             Wind::West => &mut self.west,
-//             Wind::North => &mut self.north,
-//         }
-//     }
-// }
+    // Discard
+    Discard { seat: Wind, tile: Tile },
+}
 
-// #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-// pub enum Phase {
-//     RoundStarted,
-//     ExecuteDraw,
-//     RequestSelfAction,
-//     ExecuteSelfAction,
-//     ExecuteReaction,
-//     RequestDiscard,
-//     ExecuteDiscard,
-//     RequestReaction,
-//     HandleReactions,
-//     RoundEnded,
-// }
+impl RoundState {
+    pub(crate) fn legit_events(&self) -> Vec<Event> {
+        match self.phase {
+            Phase::ExecuteDrawTile => {
+                unimplemented!()
+            }
+            Phase::ExecuteDiscard => {
+                unimplemented!()
+            }
+            Phase::RequestSelfAction => {
+                unimplemented!()
+            }
+            Phase::ExecuteSelfAction => {
+                unimplemented!()
+            }
+            Phase::RequestReaction => {
+                unimplemented!()
+            }
+            Phase::HandleReactions => {
+                unimplemented!()
+            }
+            Phase::RequestDiscard => {
+                unimplemented!()
+            }
+            Phase::ExecuteReaction => {
+                unimplemented!()
+            }
+        }
+    }
 
-// #[derive(Debug, Clone)]
-// pub struct RoundState {
-//     pub round_wind: Wind,
-//     pub seats: Seats,
-//     pub wall: Wall,
-//     pub turn: Wind,
-//     pub phase: Phase,
-//     selfaction_request_buffer: Option<Vec<SelfAction>>,
-//     last_drawn_tile_ref: Option<Tile>,
-//     pub discard_buffer: Option<Tile>,
-//     reaction_request_buffer: Option<ReactionRequests>,
-//     pending_reaction: Option<Reaction>,
-//     pub winner: Option<Wind>,
-// }
+    pub(crate) fn apply_action(&mut self, action: Event) {
+        match (self.phase, action) {
+            (Phase::ExecuteDrawTile, Event::DrawTile { seat, tile }) => {
+                unimplemented!()
+            }
+
+            (Phase::ExecuteSelfAction, Event::ConcealedKong { seat, tile }) => {
+                unimplemented!()
+            }
+            (Phase::ExecuteSelfAction, Event::AddedKong { seat, tile }) => {
+                unimplemented!()
+            }
+            (Phase::ExecuteSelfAction, Event::SelfHu { seat, tile }) => {
+                unimplemented!()
+            }
+            (Phase::ExecuteSelfAction, Event::SelfSkip) => {
+                unimplemented!()
+            }
+
+            (Phase::HandleReactions, Event::Chow { seat, tile, from, chow }) => {
+                unimplemented!()
+            }
+            (Phase::HandleReactions, Event::Pong { seat, from, tile }) => {
+                unimplemented!()
+            }
+            (Phase::HandleReactions, Event::Kong { seat, from, tile }) => {
+                unimplemented!()
+            }
+            (Phase::HandleReactions, Event::Hu { seat, from, tile }) => {
+                unimplemented!()
+            }
+            (Phase::HandleReactions, Event::ReactionSkip { seat }) => {
+                unimplemented!()
+            }
+
+            (Phase::ExecuteDiscard, Event::Discard { seat, tile }) => {
+                unimplemented!()
+            }
+
+            _ => panic!(
+                "Invalid phase-action combination: {:?} {:?}",
+                self.phase, action
+            ),
+        }
+    }
+
+    pub(crate) fn resolve_reactions(&self, reactions: Vec<Event>) -> Event {
+        unimplemented!()
+    }
+}
 
 // impl RoundState {
 //     pub fn new(round_wind: Wind) -> Self {
