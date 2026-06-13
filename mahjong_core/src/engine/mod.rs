@@ -1,40 +1,167 @@
 mod actions;
 mod round;
 
-use crate::structs::Tile;
-pub use round::{Event, Phase, RoundState, Wind};
+use crate::structs::{Hand, Tile};
+pub use round::{Event, Phase, RoundState, SeatState, Wall, Wind};
 use std::collections::HashMap;
 
 pub struct Engine {
     pub round: RoundState,
-    request_buffer: Option<EngineOutput>,
 }
 
+#[derive(Debug, Clone)]
 pub enum EngineOutput {
-    EventCommitted(Event),
+    NeedDrawTile { player: Wind },
     NeedSelfAction { player: Wind, options: Vec<Event> },
     NeedDiscard { player: Wind, options: Vec<Tile> },
     NeedReactions { options: HashMap<Wind, Vec<Event>> },
     RoundEnded { winner: Option<Wind> },
 }
 
+#[derive(Debug, Clone)]
 pub enum EngineInput {
+    DrawTile,
     SelfAction(Event),
     Discard(Tile),
     Reactions(HashMap<Wind, Event>),
 }
 
 impl Engine {
-    pub fn new(round_wind: Wind) -> Self {
-        unimplemented!()
+    pub fn new() -> Self {
+        Self {
+            round: RoundState {
+                wind: Wind::East,
+                wall: Wall::new_mcr(),
+                turn: Wind::East,
+                phase: Phase::RequestDrawTile,
+                seats: core::array::from_fn(|_| SeatState {
+                    hand: Hand::default(),
+                    discards: [None; 32],
+                }),
+            },
+        }
     }
 
+    /// Shuffle the wall, deal the initial 13 tiles to each seat,
+    /// replace flowers, and set the first draw phase.
     pub fn init_round(&mut self) {
         unimplemented!()
     }
 
-    pub fn step(&mut self, input: EngineInput) -> EngineOutput {
-        unimplemented!()
+    /// Peek at the current state. Never mutates.
+    pub fn query(&self) -> EngineOutput {
+        match self.round.phase {
+            Phase::RequestDrawTile => EngineOutput::NeedDrawTile {
+                player: self.round.turn,
+            },
+            Phase::RequestSelfAction => {
+                let options = self.round.legit_events();
+                EngineOutput::NeedSelfAction {
+                    player: self.round.turn,
+                    options,
+                }
+            }
+            Phase::RequestDiscard => {
+                let options = self.round.legit_events();
+                EngineOutput::NeedDiscard {
+                    player: self.round.turn,
+                    options: Self::extract_discard_tiles(&options),
+                }
+            }
+            Phase::RequestReaction => {
+                let options = self.round.legit_events();
+                EngineOutput::NeedReactions {
+                    options: Self::group_reactions_by_seat(&options),
+                }
+            }
+            Phase::RoundEnded => EngineOutput::RoundEnded { winner: None },
+        }
+    }
+
+    /// Apply an input action, mutate state, return the committed event.
+    /// Returns `None` only when all reaction participants skipped (no single winner event).
+    pub fn apply(&mut self, input: EngineInput) -> Option<Event> {
+        match (self.round.phase.clone(), input.clone()) {
+            (Phase::RequestDrawTile, EngineInput::DrawTile) => {
+                let tile = self.round.draw_tile();
+                Some(Event::DrawTile {
+                    seat: self.round.turn,
+                    tile,
+                })
+            }
+            (Phase::RequestSelfAction, EngineInput::SelfAction(event)) => {
+                self.round.apply_self_action(event);
+                Some(event)
+            }
+            (Phase::RequestDiscard, EngineInput::Discard(tile)) => {
+                let seat = self.round.turn;
+                self.round.add_discard(tile);
+
+                // Check reactions from other players
+                let reactions = self.round.possible_reactions(tile);
+                if reactions.is_empty() {
+                    // No one can react: advance turn, next player draws
+                    self.round.advance_turn();
+                    self.round.phase = Phase::RequestDrawTile;
+                } else {
+                    // Reactions exist: cache in RoundState, wait for input
+                    self.round.phase = Phase::RequestReaction;
+                }
+
+                Some(Event::Discard { seat, tile })
+            }
+            (Phase::RequestReaction, EngineInput::Reactions(choices)) => {
+                match self.round.resolve_reactions(&choices) {
+                    Some(winning) => {
+                        self.round.apply_reaction(winning);
+                        Some(winning)
+                    }
+                    None => {
+                        // All players skipped: advance turn, next player draws
+                        self.round.advance_turn();
+                        self.round.phase = Phase::RequestDrawTile;
+                        None
+                    }
+                }
+            }
+            _ => panic!(
+                "Invalid phase-action combination: {:?} {:?}",
+                self.round.phase, input
+            ),
+        }
+    }
+
+    // ── helpers ──
+
+    fn extract_discard_tiles(events: &[Event]) -> Vec<Tile> {
+        events
+            .iter()
+            .filter_map(|e| match e {
+                Event::Discard { tile, .. } => Some(*tile),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn group_reactions_by_seat(events: &[Event]) -> HashMap<Wind, Vec<Event>> {
+        let mut map: HashMap<Wind, Vec<Event>> = HashMap::new();
+        for event in events {
+            if let Some(seat) = Self::reaction_seat(event) {
+                map.entry(seat).or_default().push(*event);
+            }
+        }
+        map
+    }
+
+    fn reaction_seat(event: &Event) -> Option<Wind> {
+        match event {
+            Event::Chow { seat, .. }
+            | Event::Pong { seat, .. }
+            | Event::Kong { seat, .. }
+            | Event::Hu { seat, .. }
+            | Event::ReactionSkip { seat } => Some(*seat),
+            _ => None,
+        }
     }
 }
 

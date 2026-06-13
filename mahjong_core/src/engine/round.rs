@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::structs::{Hand, Tile};
 use rand::seq::SliceRandom;
 
@@ -80,14 +82,11 @@ pub struct SeatState {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Phase {
-    ExecuteDrawTile,
+    RequestDrawTile,
     RequestSelfAction,
-    ExecuteSelfAction,
-    ExecuteReaction,
     RequestDiscard,
-    ExecuteDiscard,
     RequestReaction,
-    HandleReactions,
+    RoundEnded,
 }
 
 pub struct RoundState {
@@ -98,106 +97,137 @@ pub struct RoundState {
     pub seats: [SeatState; 4],
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Event {
     // Auto-phase (engine-initiated draw)
-    DrawTile { seat: Wind, tile: Tile },
+    DrawTile {
+        seat: Wind,
+        tile: Tile,
+    },
 
     // Self-actions (player chooses after drawing)
-    ConcealedKong { seat: Wind, tile: Tile },
-    AddedKong { seat: Wind, tile: Tile },
-    SelfHu { seat: Wind, tile: Tile },
+    ConcealedKong {
+        seat: Wind,
+        tile: Tile,
+    },
+    AddedKong {
+        seat: Wind,
+        tile: Tile,
+    },
+    SelfHu {
+        seat: Wind,
+        tile: Tile,
+    },
     SelfSkip,
 
     // Reactions (other players respond to a discard)
-    Chow { seat: Wind, tile: Tile, from: Wind, chow: [Tile; 2] },
-    Pong { seat: Wind, from: Wind, tile: Tile },
-    Kong { seat: Wind, from: Wind, tile: Tile },
-    Hu { seat: Wind, from: Wind, tile: Tile },
-    ReactionSkip { seat: Wind },
+    Chow {
+        seat: Wind,
+        tile: Tile,
+        from: Wind,
+        chow: [Tile; 2],
+    },
+    Pong {
+        seat: Wind,
+        from: Wind,
+        tile: Tile,
+    },
+    Kong {
+        seat: Wind,
+        from: Wind,
+        tile: Tile,
+    },
+    Hu {
+        seat: Wind,
+        from: Wind,
+        tile: Tile,
+    },
+    ReactionSkip {
+        seat: Wind,
+    },
 
     // Discard
-    Discard { seat: Wind, tile: Tile },
+    Discard {
+        seat: Wind,
+        tile: Tile,
+    },
 }
 
 impl RoundState {
+    /// Draw the next tile from the wall and add to the current turn's hand.
+    /// If flower: increments flower count, phase stays `RequestDrawTile`.
+    /// If non-flower: adds to concealed hand, phase becomes `RequestSelfAction`
+    ///   or `RequestDiscard` depending on whether self-actions exist.
+    pub(crate) fn draw_tile(&mut self) -> Tile {
+        unimplemented!()
+    }
+
+    /// Apply a self-action for the current turn player.
+    /// Transitions phase:
+    ///   `ConcealedKong` / `AddedKong` → `RequestDrawTile`
+    ///   `SelfHu` → `RoundEnded`
+    ///   `SelfSkip` → `RequestDiscard`
+    pub(crate) fn apply_self_action(&mut self, event: Event) {
+        unimplemented!()
+    }
+
+    /// Remove a tile from the current turn's hand and add to their discard river.
+    /// Does NOT advance turn or check reactions (Engine handles that).
+    pub(crate) fn add_discard(&mut self, tile: Tile) {
+        unimplemented!()
+    }
+
+    /// Apply the winning reaction. Sets turn to the winner.
+    /// Transitions phase:
+    ///   `Chow` / `Pong` → `RequestDiscard`
+    ///   `Kong` → `RequestDrawTile`
+    ///   `Hu` → `RoundEnded`
+    pub(crate) fn apply_reaction(&mut self, event: Event) {
+        unimplemented!()
+    }
+
+    /// Advance the turn to the next player in order.
+    pub(crate) fn advance_turn(&mut self) {
+        self.turn = self.turn.next();
+    }
+
+    /// Compute possible reactions from all other seats for a given discard tile.
+    pub(crate) fn possible_reactions(
+        &self,
+        tile: Tile,
+    ) -> HashMap<Wind, Vec<Event>> {
+        unimplemented!()
+    }
+
+    /// Resolve a set of reaction choices to find the winning one.
+    /// Returns `None` if all players chose to skip.
+    pub(crate) fn resolve_reactions(
+        &self,
+        choices: &HashMap<Wind, Event>,
+    ) -> Option<Event> {
+        unimplemented!()
+    }
+
+    /// Legitimate events for the current phase.
     pub(crate) fn legit_events(&self) -> Vec<Event> {
         match self.phase {
-            Phase::ExecuteDrawTile => {
-                unimplemented!()
-            }
-            Phase::ExecuteDiscard => {
-                unimplemented!()
+            Phase::RequestDrawTile => {
+                // Tile value is unknown until drawn; query() handles this phase directly
+                vec![]
             }
             Phase::RequestSelfAction => {
-                unimplemented!()
-            }
-            Phase::ExecuteSelfAction => {
-                unimplemented!()
-            }
-            Phase::RequestReaction => {
-                unimplemented!()
-            }
-            Phase::HandleReactions => {
                 unimplemented!()
             }
             Phase::RequestDiscard => {
                 unimplemented!()
             }
-            Phase::ExecuteReaction => {
+            Phase::RequestReaction => {
                 unimplemented!()
+            }
+            Phase::RoundEnded => {
+                vec![]
             }
         }
-    }
-
-    pub(crate) fn apply_action(&mut self, action: Event) {
-        match (self.phase, action) {
-            (Phase::ExecuteDrawTile, Event::DrawTile { seat, tile }) => {
-                unimplemented!()
-            }
-
-            (Phase::ExecuteSelfAction, Event::ConcealedKong { seat, tile }) => {
-                unimplemented!()
-            }
-            (Phase::ExecuteSelfAction, Event::AddedKong { seat, tile }) => {
-                unimplemented!()
-            }
-            (Phase::ExecuteSelfAction, Event::SelfHu { seat, tile }) => {
-                unimplemented!()
-            }
-            (Phase::ExecuteSelfAction, Event::SelfSkip) => {
-                unimplemented!()
-            }
-
-            (Phase::HandleReactions, Event::Chow { seat, tile, from, chow }) => {
-                unimplemented!()
-            }
-            (Phase::HandleReactions, Event::Pong { seat, from, tile }) => {
-                unimplemented!()
-            }
-            (Phase::HandleReactions, Event::Kong { seat, from, tile }) => {
-                unimplemented!()
-            }
-            (Phase::HandleReactions, Event::Hu { seat, from, tile }) => {
-                unimplemented!()
-            }
-            (Phase::HandleReactions, Event::ReactionSkip { seat }) => {
-                unimplemented!()
-            }
-
-            (Phase::ExecuteDiscard, Event::Discard { seat, tile }) => {
-                unimplemented!()
-            }
-
-            _ => panic!(
-                "Invalid phase-action combination: {:?} {:?}",
-                self.phase, action
-            ),
-        }
-    }
-
-    pub(crate) fn resolve_reactions(&self, reactions: Vec<Event>) -> Event {
-        unimplemented!()
     }
 }
 
