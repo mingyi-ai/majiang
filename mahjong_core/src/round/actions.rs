@@ -35,20 +35,42 @@ impl Hand {
     }
 
     pub(crate) fn possible_chow_starts(&self, tile: Tile) -> Vec<Tile> {
+        let _ = tile;
         unimplemented!("Chow logic not implemented yet");
     }
 
-    pub(crate) fn possible_kong_from_pong(&self) -> bool {
-        unimplemented!("Kong from Pong logic not implemented yet");
+    /// Returns tiles where the player has an exposed Pong meld
+    /// AND at least 1 more of that tile in the concealed hand,
+    /// allowing an upgrade to an exposed Kong.
+    pub(crate) fn possible_kong_from_pong(&self) -> Vec<Tile> {
+        let mut tiles = Vec::new();
+        for meld in &self.melds {
+            if let Some(Meld::Pung(Triplet { tile, is_concealed: false })) = meld {
+                if self.concealed.count(*tile) >= 1 {
+                    tiles.push(*tile);
+                }
+            }
+        }
+        tiles
     }
 
+    /// Returns tiles where the concealed hand has exactly 4 copies,
+    /// allowing a concealed Kong declaration.
     pub(crate) fn possible_concealed_kong(&self) -> Vec<Tile> {
-        unimplemented!("Concealed Kong logic not implemented yet");
+        Tile::ALL
+            .iter()
+            .filter(|t| !t.is_flower() && self.concealed.count(**t) >= 4)
+            .copied()
+            .collect()
     }
 }
 
 // Actions related to modifying the hand based on player actions (Pong, Chow, Kong) and their effects on the concealed hand and melds
 impl Hand {
+    /// Creates a Pong meld from `tile`.
+    ///
+    /// - `is_concealed == true`: all 3 tiles came from the concealed hand, remove 3.
+    /// - `is_concealed == false`: 2 tiles from concealed + 1 from discard, remove 2.
     pub(crate) fn pong(&mut self, tile: Tile, is_concealed: bool) {
         self.melds
             .iter_mut()
@@ -58,10 +80,15 @@ impl Hand {
             })
             .expect("No empty slot available for new meld");
 
-        self.concealed.remove(tile, 3); // Remove the three tiles used for the Pong from the concealed hand
+        let remove_count = if is_concealed { 3 } else { 2 };
+        self.concealed.remove(tile, remove_count);
     }
 
-    pub(crate) fn chow(&mut self, start_tile: Tile, is_concealed: bool) {
+    /// Creates a Chow meld from `start_tile` using the 2 tiles from the player's hand.
+    ///
+    /// - `is_concealed == true`: all 3 tiles came from the concealed hand, remove all 3.
+    /// - `is_concealed == false`: 2 tiles from concealed + 1 from discard, remove `hand_tiles`.
+    pub(crate) fn chow(&mut self, start_tile: Tile, hand_tiles: [Tile; 2], is_concealed: bool) {
         self.melds
             .iter_mut()
             .find(|m| m.is_none())
@@ -71,10 +98,26 @@ impl Hand {
             })
             .expect("No empty slot available for new meld");
 
-        // self.concealed.remove(start_tile, 1);
-        unimplemented!("Remove sequence not implemented yet");
+        if is_concealed {
+            // Remove all 3 tiles of the sequence from concealed
+            // start_tile, start_tile+4, start_tile+8
+            self.concealed.remove(start_tile, 1);
+            let dt = start_tile as u8;
+            let tile2 = Tile::from_repr(dt + 4).expect("Invalid sequence tile");
+            let tile3 = Tile::from_repr(dt + 8).expect("Invalid sequence tile");
+            self.concealed.remove(tile2, 1);
+            self.concealed.remove(tile3, 1);
+        } else {
+            // Only remove the 2 tiles from the hand (the discard provides the 3rd)
+            self.concealed.remove(hand_tiles[0], 1);
+            self.concealed.remove(hand_tiles[1], 1);
+        }
     }
 
+    /// Creates a Kong meld from `tile`.
+    ///
+    /// - `is_concealed == true`: all 4 tiles came from the concealed hand, remove 4.
+    /// - `is_concealed == false`: 3 tiles from concealed + 1 from discard, remove 3.
     pub(crate) fn kong(&mut self, tile: Tile, is_concealed: bool) {
         self.melds
             .iter_mut()
@@ -84,7 +127,8 @@ impl Hand {
             })
             .expect("No empty slot available for new meld");
 
-        self.concealed.remove(tile, 4); // Remove the four tiles used for the Kong from the concealed hand
+        let remove_count = if is_concealed { 4 } else { 3 };
+        self.concealed.remove(tile, remove_count);
     }
 
     pub(crate) fn kong_from_pong(&mut self, tile: Tile) {
@@ -94,7 +138,8 @@ impl Hand {
             .position(|m| matches!(m, Some(Meld::Pung(Triplet { tile: t, .. })) if *t == tile))
             .expect("No existing Pong meld found for the specified tile");
 
-        self.melds[pong_index] = Some(Meld::Kong(Quad::new(tile, true)));
+        // The upgraded kong is always considered exposed (concealed = false)
+        self.melds[pong_index] = Some(Meld::Kong(Quad::new(tile, false)));
 
         self.concealed.remove(tile, 1); // Remove the additional tile needed to upgrade the Pong to a Kong
     }
