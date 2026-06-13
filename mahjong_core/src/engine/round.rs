@@ -85,7 +85,7 @@ pub enum Phase {
     RequestDrawTile,
     RequestSelfAction,
     RequestDiscard,
-    RequestReaction,
+    RequestReaction(Tile),
     RoundEnded,
 }
 
@@ -99,7 +99,6 @@ pub struct RoundState {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Event {
-    // Auto-phase (engine-initiated draw)
     DrawTile {
         seat: Wind,
         tile: Tile,
@@ -221,8 +220,9 @@ impl RoundState {
             Phase::RequestDiscard => {
                 unimplemented!()
             }
-            Phase::RequestReaction => {
-                unimplemented!()
+            Phase::RequestReaction(_) => {
+                // query() handles this phase directly via possible_reactions(tile)
+                vec![]
             }
             Phase::RoundEnded => {
                 vec![]

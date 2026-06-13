@@ -53,9 +53,9 @@ impl RoundState {
     /// Peek at the current state. Never mutates.
     pub fn query(&self) -> RoundOutput {
         match self.phase {
-            Phase::RequestDrawTile => RoundOutput::NeedDrawTile {
-                player: self.turn,
-            },
+            Phase::RequestDrawTile => {
+                RoundOutput::NeedDrawTile { player: self.turn }
+            }
             Phase::RequestSelfAction => {
                 let options = self.legit_events();
                 RoundOutput::NeedSelfAction {
@@ -70,9 +70,7 @@ impl RoundState {
                     options: extract_discard_tiles(&options),
                 }
             }
-            Phase::RequestReaction => {
-                let tile = find_last_discard(self)
-                    .expect("entered RequestReaction without a discard in the river");
+            Phase::RequestReaction(tile) => {
                 let options = self.possible_reactions(tile);
                 RoundOutput::NeedReactions { options }
             }
@@ -104,12 +102,12 @@ impl RoundState {
                     self.advance_turn();
                     self.phase = Phase::RequestDrawTile;
                 } else {
-                    self.phase = Phase::RequestReaction;
+                    self.phase = Phase::RequestReaction(tile);
                 }
 
                 Some(Event::Discard { seat, tile })
             }
-            (Phase::RequestReaction, RoundInput::Reactions(choices)) => {
+            (Phase::RequestReaction(_), RoundInput::Reactions(choices)) => {
                 match self.resolve_reactions(&choices) {
                     Some(winning) => {
                         self.apply_reaction(winning);
@@ -131,15 +129,6 @@ impl RoundState {
 }
 
 // ── helpers ──
-
-fn find_last_discard(round: &RoundState) -> Option<Tile> {
-    round.seats[round.turn as usize]
-        .discards
-        .iter()
-        .rfind(|t| t.is_some())
-        .copied()
-        .flatten()
-}
 
 fn extract_discard_tiles(events: &[Event]) -> Vec<Tile> {
     events

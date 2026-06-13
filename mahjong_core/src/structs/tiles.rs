@@ -24,7 +24,7 @@ impl TileType {
 }
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Mahjong tiles represented with sparse patterns
 /// optimized for bitwise operations.
 pub enum Tile {
