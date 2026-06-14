@@ -84,7 +84,11 @@ pub enum Tile {
 }
 
 impl Tile {
-    pub const COUNT: usize = 42;
+    pub const NON_FLOWER_TILE_COUNT: usize = 34;
+    pub const FLOWER_TILE_COUNT: usize = 8;
+
+    pub const COUNT: usize =
+        Self::NON_FLOWER_TILE_COUNT + Self::FLOWER_TILE_COUNT;
 
     pub const ALL: [Tile; Tile::COUNT] = [
         // Characters

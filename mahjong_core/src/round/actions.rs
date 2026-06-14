@@ -70,9 +70,16 @@ impl Hand {
     /// (claimed from a discard).
     ///
     /// TODO: integrate hu solver — currently always returns false.
-    pub(crate) fn can_hu(&self, tile: Tile) -> bool {
-        let _ = tile;
-        false
+    pub(crate) fn can_hu_on(&self, tile: Tile) -> bool {
+        let mut simulated_hand = *self; // Copy (Hand is Copy)
+        simulated_hand.add_tile(tile);
+        simulated_hand.can_hu()
+    }
+
+    /// Check if the hand can declare hu with the current concealed hand
+    /// (i.e., self-draw winnig tile).
+    pub(crate) fn can_hu(&self) -> bool {
+        unimplemented!()
     }
 
     /// Returns tiles where the player has an exposed Pong meld
@@ -85,10 +92,9 @@ impl Hand {
                 tile,
                 is_concealed: false,
             })) = meld
+                && self.concealed.count(*tile) >= 1
             {
-                if self.concealed.count(*tile) >= 1 {
-                    tiles.push(*tile);
-                }
+                tiles.push(*tile);
             }
         }
         tiles

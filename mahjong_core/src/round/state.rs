@@ -1,72 +1,8 @@
 use std::collections::HashMap;
 
-use crate::structs::{Hand, Tile};
-use rand::seq::SliceRandom;
+use crate::structs::{Hand, Tile, Wall, Wind};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[repr(u8)]
-pub enum Wind {
-    East,
-    South,
-    West,
-    North,
-}
-
-impl Wind {
-    pub fn next(self) -> Self {
-        match self {
-            Wind::East => Wind::South,
-            Wind::South => Wind::West,
-            Wind::West => Wind::North,
-            Wind::North => Wind::East,
-        }
-    }
-
-    pub fn iter() -> impl Iterator<Item = Wind> {
-        [Wind::East, Wind::South, Wind::West, Wind::North].into_iter()
-    }
-}
-
-pub(crate) const WALL_SIZE: usize = 144;
-
-#[derive(Clone, Copy)]
-pub struct Wall {
-    tiles: [Tile; WALL_SIZE],
-    pointer: usize,
-}
-
-impl Wall {
-    pub fn new_mcr() -> Self {
-        let mut tiles: [Tile; WALL_SIZE] = [Tile::Character1; WALL_SIZE];
-        let mut idx = 0;
-        for tile in Tile::iter() {
-            let count = if tile.is_flower() { 1 } else { 4 };
-            for _ in 0..count {
-                tiles[idx] = tile;
-                idx += 1;
-            }
-        }
-        // No shuffling for now; deterministic wall
-        Self { tiles, pointer: 0 }
-    }
-
-    pub(crate) fn shuffle(&mut self) {
-        let mut rng = rand::rng();
-        self.tiles.shuffle(&mut rng);
-    }
-
-    /// Yields the next tile from the wall, if available.
-    /// Advances the wall pointer.
-    pub(crate) fn yield_tile(&mut self) -> Option<Tile> {
-        if self.pointer >= WALL_SIZE {
-            return None;
-        }
-        let tile = self.tiles[self.pointer];
-        self.pointer += 1;
-        Some(tile)
-    }
-}
-
+#[derive(Clone, Copy, Default)]
 pub struct SeatState {
     pub hand: Hand,
     pub discards: [Option<Tile>; 32],
@@ -91,6 +27,7 @@ pub enum Phase {
     RequestReaction(Tile),
 }
 
+#[derive(Clone, Copy)]
 pub struct State {
     pub wind: Wind,
     pub wall: Wall,
@@ -158,112 +95,6 @@ pub enum Event {
     },
 }
 
-// ── Public API types ──
-
-#[derive(Debug, Clone)]
-pub enum Output {
-    NeedDrawTile { player: Wind },
-    NeedSelfAction { player: Wind, options: Vec<Event> },
-    NeedDiscard { player: Wind, options: Vec<Event> },
-    NeedReactions { options: HashMap<Wind, Vec<Event>> },
-}
-
-#[derive(Debug, Clone)]
-pub enum Input {
-    DrawTile,
-    SelfAction(Event),
-    Discard(Event),
-    Reactions(HashMap<Wind, Event>),
-}
-
-// ── Lifecycle ──
-
-impl State {
-    pub fn new() -> Self {
-        Self {
-            wind: Wind::East,
-            wall: Wall::new_mcr(),
-            turn: Wind::East,
-            phase: Phase::RequestDrawTile,
-            seats: core::array::from_fn(|_| SeatState {
-                hand: Hand::default(),
-                discards: [None; 32],
-            }),
-        }
-    }
-
-    /// Shuffle the wall, deal the initial 13 tiles to each seat,
-    /// replace flowers, and set the first draw phase.
-    pub fn init(&mut self) {
-        unimplemented!()
-    }
-}
-
-// ── Orchestration ──
-
-impl State {
-    /// Peek at the current state. Never mutates.
-    pub fn query(&self) -> Output {
-        match self.phase {
-            Phase::RequestDrawTile => {
-                Output::NeedDrawTile { player: self.turn }
-            }
-            Phase::RequestSelfAction(_) => Output::NeedSelfAction {
-                player: self.turn,
-                options: self.legit_events(),
-            },
-            Phase::RequestDiscard => Output::NeedDiscard {
-                player: self.turn,
-                options: self.legit_events(),
-            },
-            Phase::RequestReaction(tile) => Output::NeedReactions {
-                options: self.possible_reactions(tile),
-            },
-        }
-    }
-
-    /// Apply an input action, mutate state, return the committed event.
-    /// Always returns an event — turn advances are explicit via `AdvanceTurnTo`.
-    pub fn apply(&mut self, input: Input) -> Event {
-        match (self.phase.clone(), input.clone()) {
-            (Phase::RequestDrawTile, Input::DrawTile) => {
-                let tile = self.draw_tile();
-                if !tile.is_flower() {
-                    self.phase = Phase::RequestSelfAction(tile);
-                }
-                Event::DrawTile {
-                    seat: self.turn,
-                    tile,
-                }
-            }
-            (Phase::RequestSelfAction(_), Input::SelfAction(event)) => {
-                self.phase = self.apply_self_action(event);
-                event
-            }
-            (Phase::RequestDiscard, Input::Discard(event)) => {
-                let tile = match event {
-                    Event::Discard { seat: _, tile } => tile,
-                    _ => panic!("Invalid discard event: {:?}", event),
-                };
-                self.phase = self.apply_discard(tile);
-                Event::Discard {
-                    seat: self.turn,
-                    tile,
-                }
-            }
-            (Phase::RequestReaction(tile), Input::Reactions(choices)) => {
-                self.apply_reaction(&choices, tile)
-            }
-            _ => panic!(
-                "Invalid phase-action combination: {:?} {:?}",
-                self.phase, input
-            ),
-        }
-    }
-}
-
-// ── Internal state transitions ──
-
 impl State {
     /// Draw the next tile from the wall and add to the current turn's hand.
     ///
@@ -282,7 +113,7 @@ impl State {
 
     /// Returns the self-actions available for the current turn player
     /// given the tile just drawn.
-    fn possible_self_actions(&self, _drawn_tile: Tile) -> Vec<Event> {
+    fn possible_self_actions(&self, drawn_tile: Tile) -> Vec<Event> {
         let hand = &self.seats[self.turn as usize].hand;
         let mut actions: Vec<Event> = Vec::new();
 
@@ -301,9 +132,12 @@ impl State {
         }
 
         // TODO: self hu check — needs hu solver integration
-        // if hand.can_hu() {
-        //     actions.push(Event::SelfHu { seat: self.turn, tile: drawn_tile });
-        // }
+        if hand.can_hu() {
+            actions.push(Event::SelfHu {
+                seat: self.turn,
+                tile: drawn_tile,
+            });
+        }
 
         // Skip (discard) is always available
         actions.push(Event::SelfSkip);
@@ -334,37 +168,24 @@ impl State {
 
     /// Remove the discarded tile from hand. Returns the resulting phase
     /// (`RequestReaction` with the tile) for the caller to assign.
-    fn apply_discard(&mut self, tile: Tile) -> Phase {
+    pub(crate) fn apply_discard(&mut self, event: Event) -> Phase {
+        let tile = match event {
+            Event::Discard { tile, .. } => tile,
+            _ => panic!("Invalid event for discard: {:?}", event),
+        };
         self.seats[self.turn as usize].hand.remove_tile(tile, 1);
         Phase::RequestReaction(tile)
     }
 
-    /// Resolve reactions and apply the result.
-    ///
-    /// If a reaction wins: applies it to the winner's hand, sets turn and phase
-    /// to the winner, returns the winning event. Seat is extracted from the event
-    /// itself — no separate return needed.
-    ///
-    /// If all players skip: places the discard in the discarder's river, advances
-    /// turn, and returns `AdvanceTurnTo`.
+    /// Apply resolved reaction event. Returns the resulting (seat, phase) for the caller to assign.
     pub(crate) fn apply_reaction(
         &mut self,
-        choices: &HashMap<Wind, Event>,
-        tile: Tile,
-    ) -> Event {
-        let Some(event) = self.resolve_reactions(choices) else {
-            self.seats[self.turn as usize].push_discard(tile);
-            self.advance_turn();
-            self.phase = Phase::RequestDrawTile;
-            return Event::AdvanceTurnTo { seat: self.turn };
-        };
-
-        let (seat, phase) = match event {
+        event: Event,
+        discard: Tile,
+    ) -> (Wind, Phase) {
+        match event {
             Event::Chow {
-                seat,
-                tile,
-                start,
-                ..
+                seat, tile, start, ..
             } => {
                 self.seats[seat as usize].hand.chow(start, tile);
                 (seat, Phase::RequestDiscard)
@@ -378,17 +199,13 @@ impl State {
                 (seat, Phase::RequestDrawTile)
             }
             Event::Hu { seat, .. } => (seat, Phase::RequestDrawTile),
+            Event::AdvanceTurnTo { seat } => {
+                // All players skipped; place discard in river and advance turn
+                self.seats[self.turn as usize].push_discard(discard);
+                (seat, Phase::RequestDrawTile)
+            }
             _ => panic!("Invalid event for reaction: {:?}", event),
-        };
-
-        self.turn = seat;
-        self.phase = phase;
-        event
-    }
-
-    /// Advance the turn to the next player in order.
-    pub(crate) fn advance_turn(&mut self) {
-        self.turn = self.turn.next();
+        }
     }
 
     /// Compute possible reactions from all other seats for a given discard tile.
@@ -453,7 +270,7 @@ impl State {
             });
         }
 
-        if hand.can_hu(tile) {
+        if hand.can_hu_on(tile) {
             actions.push(Event::Hu {
                 seat,
                 from: self.turn,
@@ -469,11 +286,11 @@ impl State {
     }
 
     /// Resolve a set of reaction choices to find the winning one.
-    /// Returns `None` if all players chose to skip.
+    /// Returns the winning event. If all players skipped, returns `AdvanceTurnTo` with the next turn.
     pub(crate) fn resolve_reactions(
         &self,
         choices: &HashMap<Wind, Event>,
-    ) -> Option<Event> {
+    ) -> Event {
         unimplemented!()
     }
 

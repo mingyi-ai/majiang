@@ -92,7 +92,7 @@ impl BitTileCounts {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 pub struct Hand {
     pub(crate) concealed: BitTileCounts,
     pub(crate) melds: [Option<Meld>; 4],
