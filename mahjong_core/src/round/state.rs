@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::structs::{Hand, Tile, Wall, Wind};
 
 #[derive(Clone, Copy, Default)]
@@ -47,7 +45,6 @@ pub enum Event {
         seat: Wind,
     },
 
-    // Self-actions (player chooses after drawing)
     ConcealedKong {
         seat: Wind,
         tile: Tile,
@@ -56,12 +53,7 @@ pub enum Event {
         seat: Wind,
         tile: Tile,
     },
-    SelfHu {
-        seat: Wind,
-        tile: Tile,
-    },
 
-    // Reactions (other players respond to a discard)
     Chow {
         seat: Wind,
         tile: Tile,
@@ -84,7 +76,6 @@ pub enum Event {
         tile: Tile,
     },
 
-    // Discard
     Discard {
         seat: Wind,
         tile: Tile,
@@ -93,6 +84,24 @@ pub enum Event {
     AdvanceTurnTo {
         seat: Wind,
     },
+}
+
+impl Event {
+    /// Extract the seat from any event variant.
+    pub fn seat(&self) -> Wind {
+        match self {
+            Event::DrawTile { seat, .. }
+            | Event::Skip { seat }
+            | Event::ConcealedKong { seat, .. }
+            | Event::AddedKong { seat, .. }
+            | Event::Hu { seat, .. }
+            | Event::Chow { seat, .. }
+            | Event::Pong { seat, .. }
+            | Event::Kong { seat, .. }
+            | Event::Discard { seat, .. }
+            | Event::AdvanceTurnTo { seat } => *seat,
+        }
+    }
 }
 
 impl State {
@@ -133,21 +142,23 @@ impl State {
 
         // TODO: self hu check — needs hu solver integration
         if hand.can_hu() {
-            actions.push(Event::SelfHu {
+            actions.push(Event::Hu {
                 seat: self.turn,
+                from: self.turn,
                 tile: drawn_tile,
             });
         }
 
-        // Skip (discard) is always available
-        actions.push(Event::Skip { seat: self.turn });
+        if !actions.is_empty() {
+            actions.push(Event::Skip { seat: self.turn });
+        }
 
         actions
     }
 
     /// Apply a self-action for the current turn player.
     /// Returns the resulting phase:
-    ///   `ConcealedKong` / `AddedKong` / `SelfHu` → `RequestDrawTile`
+    ///   `ConcealedKong` / `AddedKong` / `Hu` → `RequestDrawTile`
     ///   `Skip` → `RequestDiscard`
     pub(crate) fn apply_self_action(&mut self, event: Event) -> Phase {
         let hand = &mut self.seats[self.turn as usize].hand;
@@ -160,7 +171,7 @@ impl State {
                 hand.kong_from_pong(tile);
                 Phase::RequestDrawTile
             }
-            Event::SelfHu { .. } => Phase::RequestDrawTile,
+            Event::Hu { .. } => Phase::RequestDrawTile,
             Event::Skip { seat } => {
                 debug_assert_eq!(
                     seat, self.turn,
@@ -226,27 +237,16 @@ impl State {
     }
 
     /// Compute possible reactions from all other seats for a given discard tile.
-    /// Returns a map from seat to their available reaction events.
-    /// Only seats with at least one reaction option are included.
-    pub(crate) fn reaction_options(
-        &self,
-        tile: Tile,
-    ) -> HashMap<Wind, Vec<Event>> {
-        let mut output: HashMap<Wind, Vec<Event>> = HashMap::new();
-
+    /// Returns a flat list of all available reaction events across all seats.
+    pub(crate) fn reaction_options(&self, tile: Tile) -> Vec<Event> {
+        let mut all = Vec::new();
         for seat in Wind::iter() {
             if seat == self.turn {
                 continue;
             }
-
-            let actions = self.reaction_options_by_seat(seat, tile);
-            if actions.is_empty() {
-                continue;
-            }
-            output.insert(seat, actions);
+            all.extend(self.reaction_options_by_seat(seat, tile));
         }
-
-        output
+        all
     }
 
     /// Compute possible reactions for a single seat given a discard tile.
@@ -303,10 +303,23 @@ impl State {
     /// Priority: Hu(4) > Kong(3) > Pong(2) > Chow(1).
     /// Tiebreaker: closest seat clockwise from the discarder wins.
     /// If all players skipped (or choices is empty), returns `AdvanceTurnTo`.
-    pub(crate) fn resolve_reactions(
-        &self,
-        choices: &HashMap<Wind, Event>,
-    ) -> Event {
+    pub(crate) fn resolve_reactions(&self, choices: &[Event]) -> Event {
+        debug_assert!(
+            {
+                let mut seen = 0u8;
+                choices.iter().all(|e| {
+                    let bit = 1u8 << (e.seat() as u8);
+                    if seen & bit != 0 {
+                        false
+                    } else {
+                        seen |= bit;
+                        true
+                    }
+                })
+            },
+            "duplicate seat in reaction choices"
+        );
+
         let priority = |event: &Event| -> u8 {
             match event {
                 Event::Hu { .. } => 4,
@@ -322,10 +335,10 @@ impl State {
 
         let winner = choices
             .iter()
-            .max_by_key(|(seat, event)| {
-                (priority(event), std::cmp::Reverse(distance(**seat)))
+            .max_by_key(|event| {
+                (priority(event), std::cmp::Reverse(distance(event.seat())))
             })
-            .map(|(_, event)| *event);
+            .copied();
 
         match winner {
             Some(Event::Skip { .. }) | None => Event::AdvanceTurnTo {

@@ -4,14 +4,13 @@ mod state;
 pub use state::{Event, Phase, SeatState, State};
 
 use crate::structs::{Wall, Wind};
-use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub enum Output {
-    NeedDrawTile { player: Wind },
-    NeedSelfAction { player: Wind, options: Vec<Event> },
-    NeedDiscard { player: Wind, options: Vec<Event> },
-    NeedReactions { options: HashMap<Wind, Vec<Event>> },
+    NeedDrawTile,
+    NeedSelfAction { options: Vec<Event> },
+    NeedDiscard { options: Vec<Event> },
+    NeedReactions { options: Vec<Event> },
 }
 
 #[derive(Debug, Clone)]
@@ -19,7 +18,7 @@ pub enum Input {
     DrawTile,
     SelfAction(Event),
     Discard(Event),
-    Reactions(HashMap<Wind, Event>),
+    Reactions(Vec<Event>),
 }
 
 impl State {
@@ -60,15 +59,11 @@ impl State {
     /// Peek at the current state. Never mutates.
     pub fn query(&self) -> Output {
         match self.phase {
-            Phase::RequestDrawTile => {
-                Output::NeedDrawTile { player: self.turn }
-            }
+            Phase::RequestDrawTile => Output::NeedDrawTile,
             Phase::RequestSelfAction(drawn_tile) => Output::NeedSelfAction {
-                player: self.turn,
                 options: self.self_action_options(drawn_tile),
             },
             Phase::RequestDiscard => Output::NeedDiscard {
-                player: self.turn,
                 options: self.discard_options(),
             },
             Phase::RequestReaction(tile) => Output::NeedReactions {

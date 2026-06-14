@@ -4,23 +4,16 @@ use crate::round::{Event, Input, Output, State};
 use crate::structs::Wind;
 
 /// Injected per-seat decision maker.
-///
-/// Receives the full `Output` for context — variant + available options.
-/// The caller (Board) asks the right player based on which seat the
-/// decision is for (`Output` carries `player: Wind` or a reaction map).
 pub trait Player {
-    fn decide(&self, output: &Output) -> Input;
+    fn decide(&self, output: &Output) -> Event;
 }
 
 // ── Public types ──
 
-/// Result of `Board::step()`. Returned when the internal auto-submit loop
-/// can't proceed without a player decision, or the wall is empty.
+/// Result of `Board::step()`.
 #[derive(Debug, Clone)]
 pub enum StepResult {
-    /// A player decision is needed.
     Waiting { output: Output },
-    /// Wall is empty — round ended with no winner.
     Over,
 }
 
@@ -34,12 +27,6 @@ pub enum BoardError {
 
 /// Game driver wrapping the round state machine.
 ///
-/// Owns the `State` and four per-seat `Player` injectees. The caller
-/// drives the game by alternating `step()` (auto-advances through trivial
-/// phases) and `decide()` (validates + applies a player's choice).
-///
-/// Resumable: lift the state via `into_state()`, reconstruct via `new()`.
-///
 /// # Usage
 ///
 /// ```ignore
@@ -47,22 +34,9 @@ pub enum BoardError {
 /// loop {
 ///     match board.step()? {
 ///         StepResult::Waiting { output } => {
-///             let input = match &output {
-///                 Output::NeedReactions { .. } => {
-///                     let mut choices = HashMap::new();
-///                     for seat in output_players(&output, board.state().turn) {
-///                         let choice = board.player(seat).decide(&output);
-///                         choices.insert(seat, choice);
-///                     }
-///                     Input::Reactions(choices)
-///                 }
-///                 _ => {
-///                     let seat = output_players(&output, board.state().turn)[0];
-///                     board.player(seat).decide(&output)
-///                 }
-///             };
+///             let input = board.prompt(&output);
 ///             let event = board.decide(&output, input)?;
-///             if is_hu(&event) { break; }
+///             if matches!(event, Event::Hu { .. }) { break; }
 ///         }
 ///         StepResult::Over => break,
 ///     }
@@ -78,118 +52,98 @@ impl<P: Player> Board<P> {
         Self { state, players }
     }
 
-    /// View the current round state (for serialization / resume).
     pub fn state(&self) -> &State {
         &self.state
     }
 
-    /// Consume the Board and return the state.
     pub fn into_state(self) -> State {
         self.state
     }
 
-    /// Access a player by seat (for the caller to call `decide` on).
     pub fn player(&self, seat: Wind) -> &P {
         &self.players[seat as usize]
     }
 
+    /// Collect decisions from all relevant players and wrap into `Input`.
+    pub fn prompt(&self, output: &Output) -> Input {
+        match output {
+            Output::NeedSelfAction { .. } => Input::SelfAction(
+                self.players[self.state.turn as usize].decide(output),
+            ),
+            Output::NeedDiscard { .. } => Input::Discard(
+                self.players[self.state.turn as usize].decide(output),
+            ),
+            Output::NeedReactions { options } => {
+                self.prompt_reactions(options)
+            }
+            Output::NeedDrawTile => unreachable!(),
+        }
+    }
+
+    /// Collect reactions from each seat with options.
+    fn prompt_reactions(&self, options: &[Event]) -> Input {
+        let mut by_seat: HashMap<Wind, Vec<Event>> = HashMap::new();
+        for event in options {
+            by_seat.entry(event.seat()).or_default().push(*event);
+        }
+        let mut choices = Vec::new();
+        for (seat, seat_options) in by_seat {
+            let filtered = Output::NeedReactions {
+                options: seat_options,
+            };
+            choices.push(self.players[seat as usize].decide(&filtered));
+        }
+        Input::Reactions(choices)
+    }
+
     // ── Game loop ──
 
-    /// Auto-advance through trivial phases (draw, single-option self-action,
-    /// empty reactions). Returns when a player decision is needed or the
-    /// wall is empty.
-    ///
-    /// Hu is never produced by auto phases — it only occurs through
-    /// explicit player choices via `decide()`. Use [`is_hu`] to check
-    /// the returned event.
-    ///
-    /// See the [struct-level doc](Self) for a full usage loop.
     pub fn step(&mut self) -> Result<StepResult, BoardError> {
         loop {
             let output = self.state.query();
             match output {
-                Output::NeedDrawTile { .. } => {
+                Output::NeedDrawTile => {
                     if self.state.wall.is_empty() {
                         return Ok(StepResult::Over);
                     }
                     self.state.apply(Input::DrawTile);
-                    // Flower → loop redraws; non-flower → next iteration
-                    // handles NeedSelfAction
                 }
-
-                Output::NeedSelfAction { ref options, .. }
-                    if options.len() == 1 =>
+                Output::NeedSelfAction { ref options }
+                    if options.is_empty() =>
                 {
-                    self.state.apply(Input::SelfAction(options[0]));
-                    // Phase → RequestDiscard or RequestDrawTile; loop
-                    // continues
+                    self.state.apply(Input::SelfAction(Event::Skip {
+                        seat: self.state.turn,
+                    }));
                 }
-
                 Output::NeedReactions { ref options }
                     if options.is_empty() =>
                 {
-                    self.state.apply(Input::Reactions(HashMap::new()));
-                    // resolve_reactions returns AdvanceTurnTo; loop
-                    // continues to next player's draw
+                    self.state.apply(Input::Reactions(vec![]));
                 }
-
-                output => {
-                    return Ok(StepResult::Waiting { output });
-                }
+                output => return Ok(StepResult::Waiting { output }),
             }
         }
     }
 
     /// Validate and apply a player's decision.
-    ///
-    /// `expected` must be the `Output` returned by the last `step()` call.
-    /// The `input` is validated against it — variant must match, and the
-    /// chosen event must be in the available options.
-    ///
-    /// Returns the committed `Event` on success, or `BoardError` on
-    /// mismatch.
     pub fn decide(
         &mut self,
         expected: &Output,
         input: Input,
     ) -> Result<Event, BoardError> {
         match (expected, &input) {
-            (
-                Output::NeedSelfAction { options, .. },
-                Input::SelfAction(event),
-            ) => {
-                if !options.contains(event) {
-                    return Err(BoardError::InvalidInput(format!(
-                        "self-action {:?} not in options {:?}",
-                        event, options
-                    )));
-                }
+            (Output::NeedSelfAction { options }, Input::SelfAction(event)) => {
+                check_in_options(event, options, "self-action")?;
                 Ok(self.state.apply(input))
             }
 
-            (Output::NeedDiscard { options, .. }, Input::Discard(event)) => {
-                if !options.contains(event) {
-                    return Err(BoardError::InvalidInput(format!(
-                        "discard {:?} not in options",
-                        event
-                    )));
-                }
+            (Output::NeedDiscard { options }, Input::Discard(event)) => {
+                check_in_options(event, options, "discard")?;
                 Ok(self.state.apply(input))
             }
 
             (Output::NeedReactions { options }, Input::Reactions(choices)) => {
-                for (seat, event) in choices {
-                    match options.get(seat) {
-                        Some(seat_options) if seat_options.contains(event) => {
-                        }
-                        _ => {
-                            return Err(BoardError::InvalidInput(format!(
-                                "seat {:?} chose {:?}, not in options",
-                                seat, event
-                            )));
-                        }
-                    }
-                }
+                check_reactions(choices, options, self.state.turn)?;
                 Ok(self.state.apply(input))
             }
 
@@ -203,27 +157,46 @@ impl<P: Player> Board<P> {
 
 // ── Helpers ──
 
-/// Seats that need to make a decision for this output, ordered clockwise
-/// from the current turn.
-///
-/// For `NeedSelfAction` / `NeedDiscard` this is always a single-element
-/// vec. For `NeedReactions` it returns every seat in the options map,
-/// sorted by proximity to the discarder.
-pub fn output_players(output: &Output, turn: Wind) -> Vec<Wind> {
-    let distance = |seat: Wind| -> u8 { (seat as u8 + 4 - turn as u8) % 4 };
-    match output {
-        Output::NeedDrawTile { .. } => vec![],
-        Output::NeedSelfAction { player, .. }
-        | Output::NeedDiscard { player, .. } => vec![*player],
-        Output::NeedReactions { options } => {
-            let mut seats: Vec<Wind> = options.keys().copied().collect();
-            seats.sort_by_key(|&s| distance(s));
-            seats
-        }
+/// Validates that `event` is in the available `options`.
+fn check_in_options(
+    event: &Event,
+    options: &[Event],
+    ctx: &str,
+) -> Result<(), BoardError> {
+    if options.contains(event) {
+        Ok(())
+    } else {
+        Err(BoardError::InvalidInput(format!(
+            "{} {:?} not in options",
+            ctx, event
+        )))
     }
 }
 
-/// True if the event ends the round (Hu or SelfHu).
-pub fn is_hu(event: &Event) -> bool {
-    matches!(event, Event::Hu { .. } | Event::SelfHu { .. })
+/// Validates reaction choices: no turn seat, no duplicates, each in options.
+fn check_reactions(
+    choices: &[Event],
+    options: &[Event],
+    turn: Wind,
+) -> Result<(), BoardError> {
+    let mut seen = 0u8;
+    for choice in choices {
+        let seat = choice.seat();
+        if seat == turn {
+            return Err(BoardError::InvalidInput(format!(
+                "reaction from current turn seat {:?}",
+                seat
+            )));
+        }
+        let bit = 1u8 << (seat as u8);
+        if seen & bit != 0 {
+            return Err(BoardError::InvalidInput(format!(
+                "duplicate reaction from seat {:?}",
+                seat
+            )));
+        }
+        seen |= bit;
+        check_in_options(choice, options, "reaction")?;
+    }
+    Ok(())
 }
