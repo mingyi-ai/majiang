@@ -113,18 +113,21 @@ impl State {
 
     /// Returns the self-actions available for the current turn player
     /// given the tile just drawn.
-    fn possible_self_actions(&self, drawn_tile: Tile) -> Vec<Event> {
+    pub(crate) fn self_action_options(
+        &self,
+        drawn_tile: Tile,
+    ) -> Vec<Event> {
         let hand = &self.seats[self.turn as usize].hand;
         let mut actions: Vec<Event> = Vec::new();
 
-        for tile in hand.possible_concealed_kong() {
+        for tile in hand.concealed_kong_options() {
             actions.push(Event::ConcealedKong {
                 seat: self.turn,
                 tile,
             });
         }
 
-        for tile in hand.possible_kong_from_pong() {
+        for tile in hand.added_kong_options() {
             actions.push(Event::AddedKong {
                 seat: self.turn,
                 tile,
@@ -164,6 +167,17 @@ impl State {
             Event::SelfSkip => Phase::RequestDiscard,
             _ => panic!("Invalid event for self-action: {:?}", event),
         }
+    }
+
+    pub(crate) fn discard_options(&self) -> Vec<Event> {
+        let concealed = &self.seats[self.turn as usize].hand.concealed;
+        Tile::iter()
+            .filter(|t| !t.is_flower() && concealed.count(*t) > 0)
+            .map(|tile| Event::Discard {
+                seat: self.turn,
+                tile,
+            })
+            .collect()
     }
 
     /// Remove the discarded tile from hand. Returns the resulting phase
@@ -211,7 +225,7 @@ impl State {
     /// Compute possible reactions from all other seats for a given discard tile.
     /// Returns a map from seat to their available reaction events.
     /// Only seats with at least one reaction option are included.
-    pub(crate) fn possible_reactions(
+    pub(crate) fn reaction_options(
         &self,
         tile: Tile,
     ) -> HashMap<Wind, Vec<Event>> {
@@ -222,7 +236,7 @@ impl State {
                 continue;
             }
 
-            let actions = self.possible_reactions_by_seat(seat, tile);
+            let actions = self.reaction_options_by_seat(seat, tile);
             if actions.is_empty() {
                 continue;
             }
@@ -234,7 +248,7 @@ impl State {
 
     /// Compute possible reactions for a single seat given a discard tile.
     /// Returns an empty vec if no reactions are possible for this seat.
-    fn possible_reactions_by_seat(
+    fn reaction_options_by_seat(
         &self,
         seat: Wind,
         tile: Tile,
@@ -244,7 +258,7 @@ impl State {
 
         // Only the next player in turn order can chow
         if seat == self.turn.next() {
-            for start in hand.possible_chow_starts(tile) {
+            for start in hand.chow_start_options(tile) {
                 actions.push(Event::Chow {
                     seat,
                     tile,
@@ -319,26 +333,6 @@ impl State {
                 seat: self.turn.next(),
             },
             Some(event) => event,
-        }
-    }
-
-    /// Legitimate events for the current phase.
-    pub(crate) fn legit_events(&self) -> Vec<Event> {
-        match self.phase {
-            Phase::RequestDrawTile => {
-                // Tile value is unknown until drawn; query() handles this phase directly
-                vec![]
-            }
-            Phase::RequestSelfAction(drawn_tile) => {
-                self.possible_self_actions(drawn_tile)
-            }
-            Phase::RequestDiscard => {
-                unimplemented!()
-            }
-            Phase::RequestReaction(_) => {
-                // query() handles this phase directly via possible_reactions(tile)
-                vec![]
-            }
         }
     }
 }

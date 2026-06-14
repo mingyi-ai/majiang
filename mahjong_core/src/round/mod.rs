@@ -63,16 +63,16 @@ impl State {
             Phase::RequestDrawTile => {
                 Output::NeedDrawTile { player: self.turn }
             }
-            Phase::RequestSelfAction(_) => Output::NeedSelfAction {
+            Phase::RequestSelfAction(drawn_tile) => Output::NeedSelfAction {
                 player: self.turn,
-                options: self.legit_events(),
+                options: self.self_action_options(drawn_tile),
             },
             Phase::RequestDiscard => Output::NeedDiscard {
                 player: self.turn,
-                options: self.legit_events(),
+                options: self.discard_options(),
             },
             Phase::RequestReaction(tile) => Output::NeedReactions {
-                options: self.possible_reactions(tile),
+                options: self.reaction_options(tile),
             },
         }
     }

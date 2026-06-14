@@ -29,26 +29,26 @@ impl Hand {
 // for pong, kong, chow, query tiles are not supposed to be in the hand
 impl Hand {
     /// Checks if the player can declare a Pong reaction with `tile` (i.e., has at least 2 copies in the concealed hand).
-    pub(crate) fn can_pong(&self, tile: Tile) -> bool {
-        self.concealed.count(tile) >= 2
+    pub(crate) fn can_pong(&self, discard: Tile) -> bool {
+        self.concealed.count(discard) >= 2
     }
 
     /// Checks if the player can declare a Kong reaction with `tile` (i.e., has at least 3 copies in the concealed hand).
-    pub(crate) fn can_kong(&self, tile: Tile) -> bool {
-        self.concealed.count(tile) >= 3
+    pub(crate) fn can_kong(&self, discard: Tile) -> bool {
+        self.concealed.count(discard) >= 3
     }
 
     /// Returns the start tiles of all possible chows that include `tile`
     /// as one of the three sequence tiles.
-    pub(crate) fn possible_chow_starts(&self, tile: Tile) -> Vec<Tile> {
-        if !tile.is_suit() {
+    pub(crate) fn chow_start_options(&self, discard: Tile) -> Vec<Tile> {
+        if !discard.is_suit() {
             return vec![];
         }
 
         let mut concealed = self.concealed; // Copy (BitTileCounts is Copy)
-        concealed.insert(tile); // simulate having the discard
+        concealed.insert(discard); // simulate having the discard
 
-        let (row, shift) = BitTileCounts::tile_to_position(tile);
+        let (row, shift) = BitTileCounts::tile_to_position(discard);
         let seqs = BitTileCounts::find_sequences_for_row(concealed.rows[row]);
 
         let mut results = Vec::new();
@@ -70,9 +70,9 @@ impl Hand {
     /// (claimed from a discard).
     ///
     /// TODO: integrate hu solver — currently always returns false.
-    pub(crate) fn can_hu_on(&self, tile: Tile) -> bool {
+    pub(crate) fn can_hu_on(&self, discard: Tile) -> bool {
         let mut simulated_hand = *self; // Copy (Hand is Copy)
-        simulated_hand.add_tile(tile);
+        simulated_hand.add_tile(discard);
         simulated_hand.can_hu()
     }
 
@@ -85,7 +85,7 @@ impl Hand {
     /// Returns tiles where the player has an exposed Pong meld
     /// AND at least 1 more of that tile in the concealed hand,
     /// allowing an upgrade to an exposed Kong.
-    pub(crate) fn possible_kong_from_pong(&self) -> Vec<Tile> {
+    pub(crate) fn added_kong_options(&self) -> Vec<Tile> {
         let mut tiles = Vec::new();
         for meld in &self.melds {
             if let Some(Meld::Pung(Triplet {
@@ -102,7 +102,7 @@ impl Hand {
 
     /// Returns tiles where the concealed hand has exactly 4 copies,
     /// allowing a concealed Kong declaration.
-    pub(crate) fn possible_concealed_kong(&self) -> Vec<Tile> {
+    pub(crate) fn concealed_kong_options(&self) -> Vec<Tile> {
         Tile::iter()
             .filter(|t| !t.is_flower() && self.concealed.count(*t) >= 4)
             .collect()
@@ -128,11 +128,11 @@ impl Hand {
 
     /// Creates a Chow meld from `start_tile` using the 2 tiles from the player's hand.
     /// `tile_from_discard` is the tile claimed from the discard, which should be one of the three tiles in the chow sequence.
-    pub(crate) fn chow(&mut self, start_tile: Tile, tile_from_discard: Tile) {
-        self.push_meld(Meld::Chow(Sequence::new(start_tile, false)));
+    pub(crate) fn chow(&mut self, start: Tile, discard: Tile) {
+        self.push_meld(Meld::Chow(Sequence::new(start, false)));
 
-        for tile in [start_tile, start_tile.next(), start_tile.next().next()] {
-            if tile == tile_from_discard {
+        for tile in [start, start.next(), start.next().next()] {
+            if tile == discard {
                 continue; // Skip the tile that came from the discard
             }
             self.concealed.remove(tile, 1);
