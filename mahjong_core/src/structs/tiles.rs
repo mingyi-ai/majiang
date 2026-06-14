@@ -157,7 +157,7 @@ impl Tile {
             128..=160 => Tile::from_repr(v + 4),
             192..=204 => Tile::from_repr(v + 4),
             208..=216 => Tile::from_repr(v + 4),
-            220..=227 => Tile::from_repr(v + 4),
+            220..=248 => Tile::from_repr(v + 4),
             _ => panic!(),
         }
     }
@@ -170,7 +170,7 @@ impl Tile {
             128..=160 => TileType::Bamboo,
             192..=204 => TileType::Wind,
             208..=216 => TileType::Dragon,
-            220..=227 => TileType::Flower,
+            220..=248 => TileType::Flower,
             _ => unreachable!(),
         }
     }

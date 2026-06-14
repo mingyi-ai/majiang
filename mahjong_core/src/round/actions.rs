@@ -79,7 +79,7 @@ impl Hand {
     /// Check if the hand can declare hu with the current concealed hand
     /// (i.e., self-draw winnig tile).
     pub(crate) fn can_hu(&self) -> bool {
-        unimplemented!()
+        false // TODO: integrate hu solver
     }
 
     /// Returns tiles where the player has an exposed Pong meld
