@@ -43,6 +43,10 @@ pub enum Event {
         tile: Tile,
     },
 
+    Skip {
+        seat: Wind,
+    },
+
     // Self-actions (player chooses after drawing)
     ConcealedKong {
         seat: Wind,
@@ -56,7 +60,6 @@ pub enum Event {
         seat: Wind,
         tile: Tile,
     },
-    SelfSkip,
 
     // Reactions (other players respond to a discard)
     Chow {
@@ -79,9 +82,6 @@ pub enum Event {
         seat: Wind,
         from: Wind,
         tile: Tile,
-    },
-    ReactionSkip {
-        seat: Wind,
     },
 
     // Discard
@@ -113,10 +113,7 @@ impl State {
 
     /// Returns the self-actions available for the current turn player
     /// given the tile just drawn.
-    pub(crate) fn self_action_options(
-        &self,
-        drawn_tile: Tile,
-    ) -> Vec<Event> {
+    pub(crate) fn self_action_options(&self, drawn_tile: Tile) -> Vec<Event> {
         let hand = &self.seats[self.turn as usize].hand;
         let mut actions: Vec<Event> = Vec::new();
 
@@ -143,7 +140,7 @@ impl State {
         }
 
         // Skip (discard) is always available
-        actions.push(Event::SelfSkip);
+        actions.push(Event::Skip { seat: self.turn });
 
         actions
     }
@@ -151,7 +148,7 @@ impl State {
     /// Apply a self-action for the current turn player.
     /// Returns the resulting phase:
     ///   `ConcealedKong` / `AddedKong` / `SelfHu` → `RequestDrawTile`
-    ///   `SelfSkip` → `RequestDiscard`
+    ///   `Skip` → `RequestDiscard`
     pub(crate) fn apply_self_action(&mut self, event: Event) -> Phase {
         let hand = &mut self.seats[self.turn as usize].hand;
         match event {
@@ -164,7 +161,13 @@ impl State {
                 Phase::RequestDrawTile
             }
             Event::SelfHu { .. } => Phase::RequestDrawTile,
-            Event::SelfSkip => Phase::RequestDiscard,
+            Event::Skip { seat } => {
+                debug_assert_eq!(
+                    seat, self.turn,
+                    "Skip event seat must match current turn"
+                );
+                Phase::RequestDiscard
+            }
             _ => panic!("Invalid event for self-action: {:?}", event),
         }
     }
@@ -248,11 +251,7 @@ impl State {
 
     /// Compute possible reactions for a single seat given a discard tile.
     /// Returns an empty vec if no reactions are possible for this seat.
-    fn reaction_options_by_seat(
-        &self,
-        seat: Wind,
-        tile: Tile,
-    ) -> Vec<Event> {
+    fn reaction_options_by_seat(&self, seat: Wind, tile: Tile) -> Vec<Event> {
         let hand = &self.seats[seat as usize].hand;
         let mut actions: Vec<Event> = Vec::new();
 
@@ -293,7 +292,7 @@ impl State {
         }
 
         if !actions.is_empty() {
-            actions.push(Event::ReactionSkip { seat });
+            actions.push(Event::Skip { seat });
         }
 
         actions
@@ -329,7 +328,7 @@ impl State {
             .map(|(_, event)| *event);
 
         match winner {
-            Some(Event::ReactionSkip { .. }) | None => Event::AdvanceTurnTo {
+            Some(Event::Skip { .. }) | None => Event::AdvanceTurnTo {
                 seat: self.turn.next(),
             },
             Some(event) => event,
