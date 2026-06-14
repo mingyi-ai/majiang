@@ -64,11 +64,15 @@ impl Wall {
     /// Yields the next tile from the wall, if available.
     /// Advances the wall pointer.
     pub(crate) fn yield_tile(&mut self) -> Option<Tile> {
-        if self.pointer >= WALL_SIZE {
+        if self.is_empty() {
             return None;
         }
         let tile = self.tiles[self.pointer];
         self.pointer += 1;
         Some(tile)
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.pointer >= WALL_SIZE
     }
 }
