@@ -24,7 +24,7 @@ impl TileType {
 }
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Mahjong tiles represented with sparse patterns
 /// optimized for bitwise operations.
 pub enum Tile {
@@ -141,6 +141,23 @@ impl Tile {
         Self::ALL.iter().copied()
     }
 
+    pub(crate) fn from_repr(value: u8) -> Self {
+        unsafe { std::mem::transmute(value) }
+    }
+
+    pub fn next(self) -> Tile {
+        let v = self as u8;
+        match v {
+            0..=32 => Tile::from_repr(v + 4),
+            64..=96 => Tile::from_repr(v + 4),
+            128..=160 => Tile::from_repr(v + 4),
+            192..=204 => Tile::from_repr(v + 4),
+            208..=216 => Tile::from_repr(v + 4),
+            220..=227 => Tile::from_repr(v + 4),
+            _ => panic!(),
+        }
+    }
+
     pub fn get_type(self) -> TileType {
         let offset = self as u8;
         match offset {
@@ -164,25 +181,5 @@ impl Tile {
 
     pub fn is_flower(self) -> bool {
         self.get_type().is_flower()
-    }
-
-    /// Convert a raw u8 representation back to a `Tile`.
-    /// Returns `None` if the value does not correspond to a valid tile.
-    pub fn from_repr(value: u8) -> Option<Tile> {
-        // ALL tiles are at multiples of 4; max value is 248 ÷ 4 = 62
-        let idx = (value / 4) as usize;
-        if idx >= 64 {
-            return None;
-        }
-        static INIT: std::sync::OnceLock<[Option<Tile>; 64]> = std::sync::OnceLock::new();
-        let lookup = INIT.get_or_init(|| {
-            let mut arr = [None; 64];
-            for tile in Tile::ALL {
-                let idx = (tile as u8 / 4) as usize;
-                arr[idx] = Some(tile);
-            }
-            arr
-        });
-        lookup[idx]
     }
 }

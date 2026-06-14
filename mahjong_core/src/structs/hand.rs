@@ -28,7 +28,7 @@ const TILE_COUNT_MASK: u64 = 0xF; // Mask for 4 bits
 
 // Basic operations for BitTileCounts that are internal knowledge
 impl BitTileCounts {
-    fn tile_to_position(tile: Tile) -> (usize, usize) {
+    pub(crate) fn tile_to_position(tile: Tile) -> (usize, usize) {
         debug_assert!(
             !matches!(tile.get_type(), TileType::Flower),
             "Flower tiles should not be represented in BitTileCounts"
@@ -52,7 +52,12 @@ impl BitTileCounts {
         self.rows[row] |= bit_to_add << shift;
     }
 
-    fn remove_from_row(&mut self, row: usize, shift: usize, count: u8) {
+    pub(crate) fn remove_from_row(
+        &mut self,
+        row: usize,
+        shift: usize,
+        count: u8,
+    ) {
         let slot_val = (self.rows[row] >> shift) & TILE_COUNT_MASK;
         debug_assert!(
             slot_val.count_ones() >= count as u32,
@@ -72,6 +77,18 @@ impl BitTileCounts {
         let (row, shift) = Self::tile_to_position(tile);
         let slot_val = (self.rows[row] >> shift) & TILE_COUNT_MASK;
         slot_val.count_ones() as u8
+    }
+
+    pub(crate) fn position_to_tile(row: usize, shift: usize) -> Tile {
+        debug_assert!(row < 4, "Row index out of bounds");
+        Tile::from_repr(((row as u8) << 6) | (shift as u8))
+    }
+
+    /// Finds sequences (Chows) in a row.
+    /// Returns a bitmask where bit `p` is set iff tiles at
+    /// nibbles p, p+4, p+8 all have count >= 1.
+    pub(crate) fn find_sequences_for_row(row: u64) -> u64 {
+        row & (row >> 4) & (row >> 8)
     }
 }
 
