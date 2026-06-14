@@ -58,16 +58,8 @@ impl BitTileCounts {
         shift: usize,
         count: u8,
     ) {
-        let slot_val = (self.rows[row] >> shift) & TILE_COUNT_MASK;
-        debug_assert!(
-            slot_val.count_ones() >= count as u32,
-            "Cannot remove more tiles than currently present"
-        );
-
-        let mask = slot_val ^ (slot_val >> count);
-        self.rows[row] &= !(mask << shift);
+        Self::remove_nibble(&mut self.rows[row], shift, count);
     }
-
     pub(crate) fn remove(&mut self, tile: Tile, count: u8) {
         let (row, shift) = Self::tile_to_position(tile);
         self.remove_from_row(row, shift, count);
@@ -89,6 +81,32 @@ impl BitTileCounts {
     /// nibbles p, p+4, p+8 all have count >= 1.
     pub(crate) fn find_sequences_for_row(row: u64) -> u64 {
         row & (row >> 4) & (row >> 8)
+    }
+
+    // ── Static helpers operating on raw u64 rows ──
+    // (Used by the hu solver which works on row copies.)
+
+    pub(crate) fn add_to_row(row: &mut u64, shift: usize) {
+        let slot_val = (*row >> shift) & TILE_COUNT_MASK;
+        let bit_to_add = slot_val + 1;
+        *row |= bit_to_add << shift;
+    }
+
+    /// Remove `count` tiles from a single nibble in a raw u64 row.
+    pub(crate) fn remove_nibble(row: &mut u64, shift: usize, count: u8) {
+        debug_assert!(
+            ((*row >> shift) & TILE_COUNT_MASK).count_ones() >= count as u32,
+            "Cannot remove more tiles than currently present"
+        );
+        let slot_val = (*row >> shift) & TILE_COUNT_MASK;
+        let mask = slot_val ^ (slot_val >> count);
+        *row &= !(mask << shift);
+    }
+
+    pub(crate) fn remove_sequence_from_row(row: &mut u64, shift: usize) {
+        Self::remove_nibble(row, shift, 1);
+        Self::remove_nibble(row, shift + 4, 1);
+        Self::remove_nibble(row, shift + 8, 1);
     }
 }
 

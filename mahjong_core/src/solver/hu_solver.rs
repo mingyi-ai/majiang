@@ -1,301 +1,264 @@
-// use crate::bits::{BitArray, MahjongBitArray};
+use crate::structs::BitTileCounts;
 
-// pub struct HuSolver;
+/// Standard MCR Hu solver using DFS over suit partitions.
+impl BitTileCounts {
+    pub fn is_hu(&self) -> bool {
+        let eyes = self.possible_eyes_for_hu();
+        eyes.iter().any(|&row| row != 0)
+    }
 
-// impl HuSolver {
-//     /// Main entry point for checking a Standard Hu (MCR).
-//     pub fn is_standard_hu(hand: &BitArray) -> bool {
-//         let possible_eyes = Self::possible_eyes_for_hu(hand);
-//         if possible_eyes != [0; 4] {
-//             return true;
-//         }
-//         false
-//     }
+    /// Returns possible eye tiles for each row.
+    /// A non-zero entry means a pair at that position leads to a valid
+    /// decomposition of the remaining tiles.
+    fn possible_eyes_for_hu(&self) -> [u64; 4] {
+        let mut possible_eyes = [0u64; 4];
 
-//     /// Returns a BitArray of possible eyes (pairs) that lead to a valid Hu.
-//     /// Since there must be an eye in a Standard Hu, 0 indicates no Hu possible.
-//     /// Multiple bits may be set if multiple pairs lead to valid Hu.
-//     pub fn possible_eyes_for_hu(hand: &BitArray) -> BitArray {
-//         let mut possible_eyes = [0; 4];
+        // ── Check honors (row 3) ──
+        let honor_eye = match Self::check_honors(&self.rows[3]) {
+            None => return possible_eyes,
+            Some(e) => e,
+        };
 
-//         let honor_result = Self::check_honors(&hand[3]);
-//         if honor_result.is_none() {
-//             // Invalid Honors partition → no Hu possible
-//             return possible_eyes;
-//         }
-//         let eyes_from_honors = honor_result.unwrap();
+        // Case A: Pair is in honors → solve suits without a pair
+        if honor_eye != 0 {
+            let mut temp = *self;
+            if Self::solve_suit(&mut temp.rows[0])
+                && Self::solve_suit(&mut temp.rows[1])
+                && Self::solve_suit(&mut temp.rows[2])
+            {
+                possible_eyes[3] = honor_eye;
+            }
+        }
 
-//         // Analyze Honors Partition (Row 3)
-//         // Case A: The Pair is in Honors.
-//         // Check Chars (Row 0), Dots (Row 1), Bams (Row 2)
-//         if eyes_from_honors != 0 {
-//             let mut temp_hand = *hand;
-//             if Self::solve_suits_partition(&mut temp_hand[0])
-//                 && Self::solve_suits_partition(&mut temp_hand[1])
-//                 && Self::solve_suits_partition(&mut temp_hand[2])
-//             {
-//                 possible_eyes.bit_or([0, 0, 0, eyes_from_honors]);
-//             }
-//         }
-//         // Case B: The Pair maybe in Suits.
-//         if eyes_from_honors == 0 {
-//             let possible_eyes_from_suits = Self::check_suits_for_pair(hand);
-//             possible_eyes.bit_or(possible_eyes_from_suits);
-//         }
+        // Case B: No pair in honors → try each possible suit pair
+        if honor_eye == 0 {
+            let suit_eyes = Self::check_suits_for_pair(self);
+            possible_eyes[0] = suit_eyes[0];
+            possible_eyes[1] = suit_eyes[1];
+            possible_eyes[2] = suit_eyes[2];
+        }
 
-//         possible_eyes
-//     }
+        possible_eyes
+    }
 
-//     /// Checks the Honors partition (Row index 3) for validity.
-//     /// Valid means all tiles are in sets of 2 (at most one pair) or 3.
-//     /// Returns Option<BitArray>:
-//     /// - Some<BitArray>: if valid, with BitArray containing the pair tile if exists.
-//     /// - None: if invalid configuration.
-//     #[inline]
-//     fn check_honors(row: &u64) -> Option<u64> {
-//         const HONOR_MASK: u64 = 0x0FFFFFFF;
-//         let mut honor_row = row & HONOR_MASK;
+    /// Check honors row: must be all pung (3) or exactly one pair (2).
+    /// Returns the eye bitmask, or None if invalid.
+    fn check_honors(row: &u64) -> Option<u64> {
+        const HONOR_MASK: u64 = 0x0FFFFFFF;
+        let mut r = row & HONOR_MASK;
+        let mut eye = 0u64;
 
-//         let mut eye_in_honor_row = 0;
+        while r != 0 {
+            let shift = r.trailing_zeros() as usize;
+            let nibble = (r >> shift) & 0xF;
 
-//         while honor_row != 0 {
-//             let shift = honor_row.trailing_zeros() as usize;
-//             let nibble = (honor_row >> shift) & 0xF;
+            if nibble == 0b0011 {
+                // pair
+                if eye != 0 {
+                    return None; // more than one pair
+                }
+                Self::add_to_row(&mut eye, shift);
+            } else if nibble == 0b1111 {
+                return None; // kong not allowed in hu hand
+            }
+            // 0b0001 (single) or 0b0111 (pung) → valid, just clear
+            r &= !(nibble << shift);
+        }
 
-//             if nibble == 0b0011 {
-//                 if eye_in_honor_row != 0 {
-//                     return None;
-//                 }
-//                 BitArray::add_to_row(&mut eye_in_honor_row, shift);
-//             }
-//             if nibble == 0b1111 {
-//                 return None; // Invalid nibble
-//             }
-//             honor_row &= !(nibble << shift);
-//         }
+        Some(eye)
+    }
 
-//         Some(eye_in_honor_row)
-//     }
+    /// Try each possible pair in the suit rows, return eye bitmasks.
+    fn check_suits_for_pair(&self) -> [u64; 4] {
+        let mut eyes = [0u64; 4];
+        for row_idx in 0..3 {
+            let mut row = self.rows[row_idx];
+            while row != 0 {
+                let shift = row.trailing_zeros() as usize;
+                let nibble = (row >> shift) & 0xF;
 
-//     /// Iterates over potential pairs in the suit partitions.
-//     /// Returns a BitArray of possible pair tiles that lead to a valid decomposition.
-//     #[inline]
-//     fn check_suits_for_pair(hand: &BitArray) -> BitArray {
-//         let mut possible_eyes = [0; 4];
-//         // Iterate over Row 0, 1, 2
-//         for i in 0..3 {
-//             let row = hand[i];
-//             let mut row_ref = row; // Copy of the row
-//             while row_ref != 0 {
-//                 let shift = row_ref.trailing_zeros() as usize;
-//                 let nibble = (row_ref >> shift) & 0xF;
-//                 if nibble & 0b1110 == 0 {
-//                     row_ref &= !(0xF << shift);
-//                     continue;
-//                 }
+                // Skip tiles that can't form a pair (count < 2)
+                if nibble & 0b0010 == 0 {
+                    row &= !(0xF << shift);
+                    continue;
+                }
 
-//                 let mut temp_hand = *hand;
+                // Try removing this pair and solving the rest
+                let mut temp = *self;
+                Self::remove_nibble(
+                    &mut temp.rows[row_idx],
+                    shift,
+                    2,
+                );
+                if Self::solve_suit(&mut temp.rows[0])
+                    && Self::solve_suit(&mut temp.rows[1])
+                    && Self::solve_suit(&mut temp.rows[2])
+                {
+                    Self::add_to_row(&mut eyes[row_idx], shift);
+                }
 
-//                 let _ = BitArray::remove_tiles_from_row(
-//                     &mut temp_hand[i],
-//                     shift,
-//                     2,
-//                 );
+                row &= !(0xF << shift);
+            }
+        }
+        eyes
+    }
 
-//                 if Self::solve_suits_partition(&mut temp_hand[0])
-//                     && Self::solve_suits_partition(&mut temp_hand[1])
-//                     && Self::solve_suits_partition(&mut temp_hand[2])
-//                 {
-//                     possible_eyes.add_tile((64 * i + shift) as u8);
-//                 }
-//                 row_ref &= !(0xF << shift);
-//             }
-//         }
+    /// DFS over a single suit row: try pong then chow at the first
+    /// non-zero nibble, backtracking via explicit stack.
+    fn solve_suit(row: &mut u64) -> bool {
+        if *row == 0 {
+            return true;
+        }
 
-//         possible_eyes
-//     }
+        // Stack: (row_state, branch)
+        // branch 0 = try pong, 1 = try chow, 2 = done (pop)
+        let mut stack: [(u64, u8); 5] = [(0, 0); 5];
+        let mut sp: usize = 0;
+        stack[sp] = (*row, 0);
+        sp += 1;
 
-//     /// Solves a suit partition (Row index 0, 1, or 2).
-//     /// Returns true if any branch of the binary tree leads to empty row.
-//     #[inline]
-//     fn solve_suits_partition(row: &mut u64) -> bool {
-//         if *row == 0 {
-//             return true;
-//         }
+        while sp > 0 {
+            let (cur, branch) = stack[sp - 1];
 
-//         // Stack of (row_state, branch_state)
-//         // branch_state: 0 = try pong, 1 = try chow, 2 = done
-//         // depth max 5: initial node + 4 sets
-//         let mut stack: [(u64, u8); 5] = [(0, 0); 5];
-//         let mut sp: usize = 0;
+            if cur == 0 {
+                return true;
+            }
 
-//         stack[sp] = (*row, 0);
-//         sp += 1;
+            let shift = cur.trailing_zeros() as usize;
+            let nibble = (cur >> shift) & 0xF;
 
-//         while sp > 0 {
-//             let (cur, branch) = stack[sp - 1];
+            if branch == 0 {
+                // Try pong
+                stack[sp - 1].1 = 1;
 
-//             // If row empty → found a valid complete solution.
-//             if cur == 0 {
-//                 return true;
-//             }
+                if nibble & 0b0100 != 0 {
+                    // has at least 3 copies
+                    let mut next = cur;
+                    Self::remove_nibble(&mut next, shift, 3);
+                    stack[sp] = (next, 0);
+                    sp += 1;
+                }
+            } else if branch == 1 {
+                // Try chow
+                stack[sp - 1].1 = 2;
 
-//             let shift = cur.trailing_zeros() as usize;
-//             let nibble = (cur >> shift) & 0xF;
+                let seqs = Self::find_sequences_for_row(cur);
+                if (seqs >> shift) & 0xF != 0 {
+                    let mut next = cur;
+                    Self::remove_sequence_from_row(&mut next, shift);
+                    stack[sp] = (next, 0);
+                    sp += 1;
+                }
+            } else {
+                // branch == 2 → dead end, pop
+                sp -= 1;
+            }
+        }
 
-//             if branch == 0 {
-//                 // Try Pong branch
-//                 stack[sp - 1].1 = 1; // Next time: try Chow
+        false
+    }
+}
 
-//                 if nibble & 0b0100 != 0 {
-//                     let mut next = cur;
-//                     let _ =
-//                         BitArray::remove_tiles_from_row(&mut next, shift, 3);
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::structs::Tile;
 
-//                     // Push Pong child state
-//                     stack[sp] = (next, 0);
-//                     sp += 1;
-//                 }
-//             } else if branch == 1 {
-//                 stack[sp - 1].1 = 2; // Next time: mark dead
+    fn hand_from(tiles: &[(Tile, u8)]) -> BitTileCounts {
+        let mut h = BitTileCounts::default();
+        for &(t, n) in tiles {
+            for _ in 0..n {
+                h.insert(t);
+            }
+        }
+        h
+    }
 
-//                 let sequences = BitArray::find_sequences_for_row(&cur);
+    #[test]
+    fn test_pure_hand_hu() {
+        let hand = hand_from(&[
+            (Tile::Character1, 3), // pong
+            (Tile::Character2, 1),
+            (Tile::Character3, 1),
+            (Tile::Character4, 1), // chow 234
+            (Tile::Character6, 1),
+            (Tile::Character7, 1),
+            (Tile::Character8, 1), // chow 678
+            (Tile::Character9, 3), // pong
+            (Tile::Character5, 2), // pair
+        ]);
+        assert!(hand.is_hu());
+    }
 
-//                 if ((sequences >> shift) & 0xF) != 0 {
-//                     let mut next = cur;
-//                     let _ =
-//                         BitArray::remove_sequences_from_row(&mut next, shift);
+    #[test]
+    fn test_mixed_suit_hu() {
+        let hand = hand_from(&[
+            (Tile::Character1, 1),
+            (Tile::Character2, 1),
+            (Tile::Character3, 1), // chow 123 Wan
+            (Tile::Dot1, 1),
+            (Tile::Dot2, 1),
+            (Tile::Dot3, 1), // chow 123 Tong
+            (Tile::Red, 3),  // pong Red
+            (Tile::Bamboo7, 1),
+            (Tile::Bamboo8, 1),
+            (Tile::Bamboo9, 1), // chow 789 Tiao
+            (Tile::West, 2),    // pair West
+        ]);
+        assert!(hand.is_hu());
+    }
 
-//                     // Push Chow child state
-//                     stack[sp] = (next, 0);
-//                     sp += 1;
-//                 }
-//             } else {
-//                 // Safety: branch can only be 2 here
-//                 sp -= 1;
-//             }
-//         }
+    #[test]
+    fn test_invalid_hand() {
+        let hand = hand_from(&[
+            (Tile::Character1, 2), // pair only
+            (Tile::Character2, 1),
+            (Tile::Character3, 1), // incomplete
+        ]);
+        assert!(!hand.is_hu());
+    }
 
-//         false
-//     }
-// }
+    #[test]
+    fn test_eyes_in_honors() {
+        let mut hand = BitTileCounts::default();
+        hand.insert(Tile::East);
+        hand.insert(Tile::East); // pair East
+        assert_eq!(
+            BitTileCounts::check_honors(&hand.rows[3]),
+            Some(0b0001u64 << 0) // shift 0 = East
+        );
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::tile::Tile;
+        hand.insert(Tile::South);
+        hand.insert(Tile::South);
+        hand.insert(Tile::South); // pong South
+        assert_eq!(
+            BitTileCounts::check_honors(&hand.rows[3]),
+            Some(0b0001u64 << 0) // East pair still the only eye
+        );
+    }
 
-//     #[allow(dead_code)]
-//     fn to_bit_hand(tiles: Vec<Tile>) -> BitArray {
-//         let mut hand = [0; 4];
+    #[test]
+    fn test_dfs_solver() {
+        // 111 (pong)
+        let mut row = 0u64;
+        for _ in 0..3 {
+            BitTileCounts::add_to_row(&mut row, 0);
+        }
+        assert!(BitTileCounts::solve_suit(&mut row));
 
-//         for t in tiles {
-//             hand.add_tile(t.id());
-//         }
-//         hand
-//     }
+        // 111 234 (pong + chow)
+        BitTileCounts::add_to_row(&mut row, 12); // Char4
+        BitTileCounts::add_to_row(&mut row, 16); // Char5
+        BitTileCounts::add_to_row(&mut row, 20); // Char6
+        assert!(BitTileCounts::solve_suit(&mut row));
 
-//     #[test]
-//     fn test_pure_hand_hu() {
-//         let mut hand: BitArray = [0; 4];
-//         // 111 234 678 999 55 (Pair)
-
-//         hand.add_tiles(Tile::Character1.id(), 3);
-//         hand.add_tile(Tile::Character2.id());
-//         hand.add_tile(Tile::Character3.id());
-//         hand.add_tile(Tile::Character4.id());
-
-//         hand.add_tile(Tile::Character6.id());
-//         hand.add_tile(Tile::Character7.id());
-//         hand.add_tile(Tile::Character8.id());
-
-//         hand.add_tiles(Tile::Character9.id(), 3);
-//         hand.add_tiles(Tile::Character5.id(), 2);
-
-//         assert!(HuSolver::is_standard_hu(&hand));
-//     }
-//     #[test]
-//     fn test_eyes_in_wind() {
-//         let mut row = 0u64;
-
-//         BitArray::add_tiles_to_row(&mut row, Tile::East.id() as usize % 64, 2);
-//         println!("Row with East pair: {:064b}", row);
-
-//         let mut expected_eyes = 0u64;
-//         BitArray::add_to_row(
-//             &mut expected_eyes,
-//             Tile::East.id() as usize % 64,
-//         );
-//         println!("Expected eyes: {:064b}", expected_eyes);
-//         assert_eq!(HuSolver::check_honors(&row).unwrap(), expected_eyes);
-
-//         BitArray::add_tiles_to_row(
-//             &mut row,
-//             Tile::South.id() as usize % 64,
-//             3,
-//         );
-//         println!("Row with East pair + South pong: {:064b}", row);
-//         assert_eq!(HuSolver::check_honors(&row).unwrap(), expected_eyes);
-//     }
-
-//     #[test]
-//     fn test_dfs_solver() {
-//         let mut row = 0u64;
-
-//         // 111 234
-//         BitArray::add_tiles_to_row(&mut row, 0, 3); // 111
-//         println!("After adding 111: {:064b}", row);
-//         assert!(HuSolver::solve_suits_partition(&mut row));
-
-//         BitArray::add_to_row(&mut row, Tile::Character4.id() as usize % 64); // 4
-//         BitArray::add_to_row(&mut row, Tile::Character5.id() as usize % 64); // 5
-//         BitArray::add_to_row(&mut row, Tile::Character6.id() as usize % 64); // 6
-//         println!("After adding 456: {:064b}", row);
-//         assert!(HuSolver::solve_suits_partition(&mut row));
-
-//         let mut row = 0u64;
-//         BitArray::add_tiles_to_row(&mut row, 0, 4); // 1111
-//         BitArray::add_to_row(&mut row, Tile::Character2.id() as usize % 64); // 2
-//         BitArray::add_to_row(&mut row, Tile::Character3.id() as usize % 64); // 3
-//         println!("After adding 1111 23: {:064b}", row);
-//         assert!(HuSolver::solve_suits_partition(&mut row));
-//     }
-
-//     #[test]
-//     fn test_mixed_suit_hu() {
-//         let mut hand: BitArray = [0; 4];
-
-//         // Pong 1-Wan
-//         hand.add_tiles(Tile::Character1.id(), 3);
-
-//         // Chow 1-2-3 Dot
-//         hand.add_tile(Tile::Dot1.id());
-//         hand.add_tile(Tile::Dot2.id());
-//         hand.add_tile(Tile::Dot3.id());
-
-//         // Pong Red Dragon
-//         hand.add_tiles(Tile::Red.id(), 3);
-
-//         // Chow 7-8-9 Bam
-//         hand.add_tile(Tile::Bamboo7.id());
-//         hand.add_tile(Tile::Bamboo8.id());
-//         hand.add_tile(Tile::Bamboo9.id());
-
-//         // Pair West Wind
-//         hand.add_tiles(Tile::West.id(), 2);
-
-//         assert!(HuSolver::is_standard_hu(&hand));
-//     }
-
-//     #[test]
-//     fn test_invalid_hand() {
-//         let mut hand: BitArray = [0; 4];
-//         // 11 (Pair?)
-//         hand.add_tiles(Tile::Character1.id(), 2);
-//         // 23 (Incomplete Chow)
-//         hand.add_tile(Tile::Character2.id());
-//         hand.add_tile(Tile::Character3.id());
-
-//         assert!(!HuSolver::is_standard_hu(&hand));
-//     }
-// }
+        // 1111 23 (kong_split: 111 + 123 with one from the kong)
+        let mut row = 0u64;
+        for _ in 0..4 {
+            BitTileCounts::add_to_row(&mut row, 0); // 4x Char1
+        }
+        BitTileCounts::add_to_row(&mut row, 4); // Char2
+        BitTileCounts::add_to_row(&mut row, 8); // Char3
+        assert!(BitTileCounts::solve_suit(&mut row));
+    }
+}
