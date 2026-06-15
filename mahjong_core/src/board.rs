@@ -61,22 +61,34 @@ enum Prompted {
 /// # Usage
 ///
 /// ```ignore
-/// let mut board = Board::new(state, [p0, p1, p2, p3]);
-/// board.run(
-///     |e| println!("{e:?}"),
-///     |result| match result {
-///         GameResult::Hu { winner } => println!("{:?} wins!", winner),
-///         GameResult::Draw => println!("Draw game"),
-///     },
-/// )?;
+/// use mahjong_core::board::*;
+/// use mahjong_core::round::{Event, State};
+/// use mahjong_core::structs::Wind;
+///
+/// struct Dummy;
+/// impl Player for Dummy {
+///     fn decide(&self, options: &[Event]) -> Decision {
+///         Decision::Pick(options[0])
+///     }
+/// }
+///
+/// let mut state = State::new(Wind::East, Wind::East);
+/// state.init();
+/// let p = Dummy;
+/// let mut board = Board::new(state, [&p; 4]);
+/// board.run(|_e| {})?;
+/// # Ok::<_, BoardError>(())
 /// ```
-pub struct Board<P: Player> {
+///
+/// Players are borrowed, not owned — the same player can be reused
+/// across multiple rounds.
+pub struct Board<'a, P: Player> {
     state: State,
-    players: [P; 4],
+    players: [&'a P; 4],
 }
 
-impl<P: Player> Board<P> {
-    pub fn new(state: State, players: [P; 4]) -> Self {
+impl<'a, P: Player> Board<'a, P> {
+    pub fn new(state: State, players: [&'a P; 4]) -> Self {
         Self { state, players }
     }
 
@@ -89,7 +101,7 @@ impl<P: Player> Board<P> {
     }
 
     pub fn player(&self, seat: Wind) -> &P {
-        &self.players[seat as usize]
+        self.players[seat as usize]
     }
 
     /// Collect decisions from all relevant players and wrap into `Input`.
@@ -200,16 +212,15 @@ impl<P: Player> Board<P> {
 
     /// Run the game loop until the round ends or a player exits.
     ///
-    /// `on_event` is called for every committed event.
-    /// `on_end` is called once with the game result (Hu winner or draw)
-    /// — but only when the game concludes normally, not on user exit.
+    /// `on_event` is called for every committed event (draws, discards,
+    /// reactions, turn advances). The game result is returned via
+    /// [`BoardOutput`].
     ///
     /// Returns `Err` only on invalid player input — the caller typically
     /// unwraps, since the UI layer should guard against invalid choices.
     pub fn run(
         &mut self,
         mut on_event: impl FnMut(&Event),
-        on_end: impl Fn(GameResult),
     ) -> Result<BoardOutput, BoardError> {
         loop {
             match self.step(|e| on_event(e))? {
@@ -221,15 +232,12 @@ impl<P: Player> Board<P> {
                     let event = self.validate_and_apply(&output, input)?;
                     on_event(&event);
                     if matches!(event, Event::Hu { .. }) {
-                        let result = GameResult::Hu {
+                        return Ok(BoardOutput::GameConcluded(GameResult::Hu {
                             winner: event.seat(),
-                        };
-                        on_end(result);
-                        return Ok(BoardOutput::GameConcluded(result));
+                        }));
                     }
                 }
                 StepResult::Over => {
-                    on_end(GameResult::Draw);
                     return Ok(BoardOutput::GameConcluded(GameResult::Draw));
                 }
             }

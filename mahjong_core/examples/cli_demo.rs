@@ -48,13 +48,23 @@ fn run_game() {
     let mut state = State::new(Wind::East, Wind::East);
     state.init();
 
-    let players = [CliPlayer, CliPlayer, CliPlayer, CliPlayer];
-    let mut board = Board::new(state, players);
+    // Players are borrowed, not consumed — same players can be reused
+    // across multiple rounds by constructing a new Board with &refs.
+    let p = CliPlayer;
+    let mut board = Board::new(state, [&p; 4]);
 
     println!("\n── Game Start ──");
 
-    match board.run(print_event, print_on_end) {
-        Ok(BoardOutput::GameConcluded(_)) => {
+    match board.run(print_event) {
+        Ok(BoardOutput::GameConcluded(result)) => {
+            match result {
+                GameResult::Hu { winner } => {
+                    println!("\n🎉 {} wins with Hu!\n", wind_name(winner));
+                }
+                GameResult::Draw => {
+                    println!("\nWall is empty — draw game.");
+                }
+            }
             println!("── Game Over ──");
         }
         Ok(BoardOutput::UserExited) => {
@@ -103,15 +113,6 @@ fn pick_event(options: &[Event], noun: &str) -> Decision {
 
 fn print_event(e: &Event) {
     println!("  {:?}", e);
-}
-
-fn print_on_end(result: GameResult) {
-    match result {
-        GameResult::Hu { winner } => {
-            println!("{} wins with Hu!", wind_name(winner))
-        }
-        GameResult::Draw => println!("Wall is empty — draw game."),
-    }
 }
 
 fn wind_name(w: Wind) -> &'static str {
