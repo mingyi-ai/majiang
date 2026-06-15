@@ -2,7 +2,7 @@ use std::io::{self, BufRead, Write};
 
 use mahjong_core::board::{Board, BoardError, Player, StepResult};
 use mahjong_core::round::{Event, Output, State};
-use mahjong_core::structs::{Tile, Wind};
+use mahjong_core::structs::Wind;
 
 fn main() {
     let mut state = State::new(Wind::East, Wind::East);
@@ -16,22 +16,26 @@ fn main() {
 
     loop {
         match board.step() {
-            Ok(StepResult::Waiting { output }) => {
+            Ok((auto_events, StepResult::Waiting { output })) => {
+                for e in &auto_events {
+                    println!("  {:?}", e);
+                }
                 let input = board.prompt(&output);
                 match board.decide(&output, input) {
                     Ok(event) => {
+                        println!("  {:?}", &event);
                         if matches!(event, Event::Hu { .. }) {
-                            println!("\n🎉 {} wins with Hu!\n", wind_name(event.seat()));
+                            println!("\n🎉 {} wins with Hu!\n",
+                                wind_name(event.seat()));
                             break;
                         }
                     }
                     Err(BoardError::InvalidInput(msg)) => {
                         println!("[error] {msg}");
                     }
-                    Err(BoardError::WallEmpty) => unreachable!(),
                 }
             }
-            Ok(StepResult::Over) => {
+            Ok((_events, StepResult::Over)) => {
                 println!("\nWall is empty — draw game.");
                 break;
             }
@@ -78,7 +82,7 @@ impl Player for CliPlayer {
 
 fn pick_event(options: &[Event], noun: &str) -> Event {
     for (i, ev) in options.iter().enumerate() {
-        println!("  {}. {}", i + 1, describe_event(ev));
+        println!("  {}. {:?}", i + 1, ev);
     }
     loop {
         print!("Choose {noun} (1-{}, q to quit): ", options.len());
@@ -107,64 +111,5 @@ fn wind_name(w: Wind) -> &'static str {
         Wind::South => "South",
         Wind::West => "West",
         Wind::North => "North",
-    }
-}
-
-fn tile_name(t: Tile) -> String {
-    match t.get_type() {
-        mahjong_core::structs::TileType::Character => {
-            let n = ((t as u8 & 0x3F) >> 2) + 1;
-            format!("{n} Wan")
-        }
-        mahjong_core::structs::TileType::Dot => {
-            let n = ((t as u8 & 0x3F) >> 2) + 1;
-            format!("{n} Tong")
-        }
-        mahjong_core::structs::TileType::Bamboo => {
-            let n = ((t as u8 & 0x3F) >> 2) + 1;
-            format!("{n} Tiao")
-        }
-        mahjong_core::structs::TileType::Wind => match t {
-            Tile::East => "East Wind",
-            Tile::South => "South Wind",
-            Tile::West => "West Wind",
-            Tile::North => "North Wind",
-            _ => unreachable!(),
-        }
-        .into(),
-        mahjong_core::structs::TileType::Dragon => match t {
-            Tile::Red => "Red Dragon",
-            Tile::Green => "Green Dragon",
-            Tile::White => "White Dragon",
-            _ => unreachable!(),
-        }
-        .into(),
-        mahjong_core::structs::TileType::Flower => format!("{:?}", t),
-    }
-}
-
-fn describe_event(ev: &Event) -> String {
-    match ev {
-        Event::Skip { .. } => "Skip".into(),
-        Event::Discard { tile, .. } => format!("Discard {}", tile_name(*tile)),
-        Event::Chow { start, .. } => {
-            format!(
-                "Chow {}-{}-{} (start: {})",
-                tile_name(*start),
-                tile_name(start.next()),
-                tile_name(start.next().next()),
-                tile_name(*start),
-            )
-        }
-        Event::Pong { tile, .. } => format!("Pong {}", tile_name(*tile)),
-        Event::Kong { tile, .. } => format!("Kong {}", tile_name(*tile)),
-        Event::Hu { .. } => "Hu!".into(),
-        Event::ConcealedKong { tile, .. } => {
-            format!("Concealed Kong {}", tile_name(*tile))
-        }
-        Event::AddedKong { tile, .. } => {
-            format!("Added Kong {}", tile_name(*tile))
-        }
-        _ => format!("{:?}", ev),
     }
 }

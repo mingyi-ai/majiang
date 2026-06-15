@@ -19,7 +19,6 @@ pub enum StepResult {
 
 #[derive(Debug, Clone)]
 pub enum BoardError {
-    WallEmpty,
     InvalidInput(String),
 }
 
@@ -33,12 +32,16 @@ pub enum BoardError {
 /// let mut board = Board::new(state, [p0, p1, p2, p3]);
 /// loop {
 ///     match board.step()? {
-///         StepResult::Waiting { output } => {
+///         (events, StepResult::Waiting { output }) => {
+///             for e in &events { println!("{e:?}"); }
 ///             let input = board.prompt(&output);
 ///             let event = board.decide(&output, input)?;
 ///             if matches!(event, Event::Hu { .. }) { break; }
 ///         }
-///         StepResult::Over => break,
+///         (events, StepResult::Over) => {
+///             for e in &events { println!("{e:?}"); }
+///             break;
+///         }
 ///     }
 /// }
 /// ```
@@ -96,17 +99,17 @@ impl<P: Player> Board<P> {
         Input::Reactions(choices)
     }
 
-    // ── Game loop ──
-
-    pub fn step(&mut self) -> Result<StepResult, BoardError> {
+    /// Auto-advance and return all committed events with the result.
+    pub fn step(&mut self) -> Result<(Vec<Event>, StepResult), BoardError> {
+        let mut events = Vec::new();
         loop {
             let output = self.state.query();
             match output {
                 Output::NeedDrawTile => {
                     if self.state.wall.is_empty() {
-                        return Ok(StepResult::Over);
+                        return Ok((events, StepResult::Over));
                     }
-                    self.state.apply(Input::DrawTile);
+                    events.push(self.state.apply(Input::DrawTile));
                 }
                 Output::NeedSelfAction { ref options }
                     if options.is_empty() =>
@@ -120,7 +123,9 @@ impl<P: Player> Board<P> {
                 {
                     self.state.apply(Input::Reactions(vec![]));
                 }
-                output => return Ok(StepResult::Waiting { output }),
+                output => {
+                    return Ok((events, StepResult::Waiting { output }));
+                }
             }
         }
     }
