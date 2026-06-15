@@ -48,23 +48,23 @@ fn main_menu() -> MenuChoice {
 
 fn run_game() {
     // Seeded RNG for deterministic games (useful for debugging).
-    // Use `rand::rng()` for true randomness in production.
-    // Use `StdRng::seed_from_u64(n)` to reproduce a specific game.
     let mut rng = StdRng::seed_from_u64(42);
 
-    // Players are borrowed, not consumed — same player refs can be
-    // reused across multiple rounds.
-    let p = CliPlayer;
-    let mut board = Board::new(Wind::East, Wind::East, [&p; 4], &mut rng);
+    // Only the East seat prompts for input; other seats auto-play.
+    let p = DemoPlayer { is_cli: true };
+    let dummy = DemoPlayer { is_cli: false };
+    let mut board = Board::new(
+        Wind::East,
+        Wind::East,
+        [&p, &dummy, &dummy, &dummy],
+        &mut rng,
+    );
 
-    println!("\n── Game Start ──");
+    println!("\n── Game Start ──\n");
 
-    // board.run() takes two callbacks:
-    //   1. on_initial_deal — private per-player deal events
-    //   2. on_game_event   — public events visible to all players
     match board.run(
-        |event| println!("  {:?}", event),   // show deal
-        |event| println!("  {:?}", event),   // show game events
+        |event| println!("  [deal] {:?}", event),
+        |event| println!("  {:?}", event),
     ) {
         Ok(BoardOutput::GameConcluded(result)) => {
             match result {
@@ -86,39 +86,44 @@ fn run_game() {
     }
 }
 
-// ── CLI Player ──
+// ── Demo Player ──
 
-struct CliPlayer;
-
-impl Player for CliPlayer {
-    fn decide(&self, options: &[Event]) -> Decision {
-        println!();
-        pick_event(options)
-    }
+struct DemoPlayer {
+    is_cli: bool,
 }
 
-fn pick_event(options: &[Event]) -> Decision {
-    for (i, ev) in options.iter().enumerate() {
-        println!("  {}. {:?}", i + 1, ev);
-    }
-    loop {
-        print!(
-            "Choose option (1-{}, q=quit to menu): ",
-            options.len()
-        );
-        io::stdout().flush().ok();
-        let mut line = String::new();
-        io::stdin().lock().read_line(&mut line).ok();
-        let line = line.trim();
-        if line == "q" || line == "quit" {
-            return Decision::Exit;
-        }
-        if let Ok(n) = line.parse::<usize>() {
-            if n >= 1 && n <= options.len() {
-                return Decision::Pick(options[n - 1]);
+impl Player for DemoPlayer {
+    fn decide(&self, options: &[Event]) -> Decision {
+        if self.is_cli {
+            println!();
+            for (i, ev) in options.iter().enumerate() {
+                println!("  {}. {:?}", i + 1, ev);
             }
+            loop {
+                print!(
+                    "Choose option (1-{}, q=quit to menu): ",
+                    options.len()
+                );
+                io::stdout().flush().ok();
+                let mut line = String::new();
+                io::stdin().lock().read_line(&mut line).ok();
+                let line = line.trim();
+                if line == "q" || line == "quit" {
+                    return Decision::Exit;
+                }
+                if let Ok(n) = line.parse::<usize>() {
+                    if n >= 1 && n <= options.len() {
+                        return Decision::Pick(options[n - 1]);
+                    }
+                }
+                println!("  Invalid — enter 1-{} or q.", options.len());
+            }
+        } else {
+            // Dummy: always pick the first option. During reaction
+            // phases this is typically Skip; during discard/action
+            // phases it's the first valid action.
+            Decision::Pick(options[0])
         }
-        println!("  Invalid — enter 1-{} or q.", options.len());
     }
 }
 
