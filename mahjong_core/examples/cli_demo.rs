@@ -1,6 +1,6 @@
 use std::io::{self, BufRead, Write};
 
-use mahjong_core::board::{Board, BoardError, Player, StepResult};
+use mahjong_core::board::{Board, GameResult, Player};
 use mahjong_core::round::{Event, Output, State};
 use mahjong_core::structs::Wind;
 
@@ -14,34 +14,16 @@ fn main() {
     println!("━━━ Mahjong CLI Demo ━━━");
     println!("Type the number of your choice, or 'q' to quit.\n");
 
-    loop {
-        match board.step(|e| print_event(e)) {
-            Ok(StepResult::Waiting { output }) => {
-                let input = board.prompt(&output);
-                match board.decide(&output, input) {
-                    Ok(event) => {
-                        print_event(&event);
-                        if matches!(event, Event::Hu { .. }) {
-                            println!("\n🎉 {} wins with Hu!\n",
-                                wind_name(event.seat()));
-                            break;
-                        }
-                    }
-                    Err(BoardError::InvalidInput(msg)) => {
-                        println!("[error] {msg}");
-                    }
-                }
+    board
+        .run(print_event, |result| match result {
+            GameResult::Hu { winner } => {
+                println!("\n🎉 {} wins with Hu!\n", wind_name(winner));
             }
-            Ok(StepResult::Over) => {
+            GameResult::Draw => {
                 println!("\nWall is empty — draw game.");
-                break;
             }
-            Err(e) => {
-                println!("[error] {e:?}");
-                break;
-            }
-        }
-    }
+        })
+        .unwrap();
 
     println!("── Game Over ──");
 }
@@ -66,10 +48,7 @@ impl Player for CliPlayer {
             }
             Output::NeedReactions { options } => {
                 let seat = options.first().map(|e| e.seat()).unwrap();
-                println!(
-                    "[{}] Reaction: pick an option",
-                    wind_name(seat)
-                );
+                println!("[{}] Reaction: pick an option", wind_name(seat));
                 pick_event(options, "option")
             }
             Output::NeedDrawTile => unreachable!(),

@@ -22,6 +22,13 @@ pub enum BoardError {
     InvalidInput(String),
 }
 
+/// How the game ended.
+#[derive(Debug, Clone, Copy)]
+pub enum GameResult {
+    Hu { winner: Wind },
+    Draw,
+}
+
 // ── Board ──
 
 /// Game driver wrapping the round state machine.
@@ -30,16 +37,13 @@ pub enum BoardError {
 ///
 /// ```ignore
 /// let mut board = Board::new(state, [p0, p1, p2, p3]);
-/// loop {
-///     match board.step(|e| println!("{e:?}"))? {
-///         StepResult::Waiting { output } => {
-///             let input = board.prompt(&output);
-///             let event = board.decide(&output, input)?;
-///             if matches!(event, Event::Hu { .. }) { break; }
-///         }
-///         StepResult::Over => break,
-///     }
-/// }
+/// board.run(
+///     |e| println!("{e:?}"),
+///     |result| match result {
+///         GameResult::Hu { winner } => println!("{:?} wins!", winner),
+///         GameResult::Draw => println!("Draw game"),
+///     },
+/// )?;
 /// ```
 pub struct Board<P: Player> {
     state: State,
@@ -64,7 +68,7 @@ impl<P: Player> Board<P> {
     }
 
     /// Collect decisions from all relevant players and wrap into `Input`.
-    pub fn prompt(&self, output: &Output) -> Input {
+    fn prompt(&self, output: &Output) -> Input {
         match output {
             Output::NeedSelfAction { .. } => Input::SelfAction(
                 self.players[self.state.turn as usize].decide(output),
@@ -97,7 +101,7 @@ impl<P: Player> Board<P> {
 
     /// Auto-advance through mechanical phases. Calls `on_event` for each
     /// effective event (draws). Skips and turn-advances are absorbed.
-    pub fn step(
+    fn step(
         &mut self,
         mut on_event: impl FnMut(&Event),
     ) -> Result<StepResult, BoardError> {
@@ -131,7 +135,7 @@ impl<P: Player> Board<P> {
     }
 
     /// Validate and apply a player's decision.
-    pub fn decide(
+    fn decide(
         &mut self,
         expected: &Output,
         input: Input,
@@ -156,6 +160,39 @@ impl<P: Player> Board<P> {
                 "input {:?} doesn't match expected {:?}",
                 input, expected
             ))),
+        }
+    }
+
+    /// Run the game loop until the round ends.
+    ///
+    /// `on_event` is called for every committed event.
+    /// `on_end` is called once with the game result (Hu winner or draw).
+    ///
+    /// Returns `Err` only on invalid player input — the caller typically
+    /// unwraps, since the UI layer should guard against invalid choices.
+    pub fn run(
+        &mut self,
+        mut on_event: impl FnMut(&Event),
+        on_end: impl Fn(GameResult),
+    ) -> Result<(), BoardError> {
+        loop {
+            match self.step(|e| on_event(e))? {
+                StepResult::Waiting { output } => {
+                    let input = self.prompt(&output);
+                    let event = self.decide(&output, input)?;
+                    on_event(&event);
+                    if matches!(event, Event::Hu { .. }) {
+                        on_end(GameResult::Hu {
+                            winner: event.seat(),
+                        });
+                        return Ok(());
+                    }
+                }
+                StepResult::Over => {
+                    on_end(GameResult::Draw);
+                    return Ok(());
+                }
+            }
         }
     }
 }
