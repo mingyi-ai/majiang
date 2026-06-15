@@ -15,15 +15,12 @@ fn main() {
     println!("Type the number of your choice, or 'q' to quit.\n");
 
     loop {
-        match board.step() {
-            Ok((auto_events, StepResult::Waiting { output })) => {
-                for e in &auto_events {
-                    println!("  {:?}", e);
-                }
+        match board.step(|e| print_event(e)) {
+            Ok(StepResult::Waiting { output }) => {
                 let input = board.prompt(&output);
                 match board.decide(&output, input) {
                     Ok(event) => {
-                        println!("  {:?}", &event);
+                        print_event(&event);
                         if matches!(event, Event::Hu { .. }) {
                             println!("\n🎉 {} wins with Hu!\n",
                                 wind_name(event.seat()));
@@ -35,7 +32,7 @@ fn main() {
                     }
                 }
             }
-            Ok((_events, StepResult::Over)) => {
+            Ok(StepResult::Over) => {
                 println!("\nWall is empty — draw game.");
                 break;
             }
@@ -104,6 +101,11 @@ fn pick_event(options: &[Event], noun: &str) -> Event {
 }
 
 // ── Formatting helpers ──
+
+/// Print an event to the event log.
+fn print_event(e: &Event) {
+    println!("  {:?}", e);
+}
 
 fn wind_name(w: Wind) -> &'static str {
     match w {

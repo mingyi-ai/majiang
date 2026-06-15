@@ -31,17 +31,13 @@ pub enum BoardError {
 /// ```ignore
 /// let mut board = Board::new(state, [p0, p1, p2, p3]);
 /// loop {
-///     match board.step()? {
-///         (events, StepResult::Waiting { output }) => {
-///             for e in &events { println!("{e:?}"); }
+///     match board.step(|e| println!("{e:?}"))? {
+///         StepResult::Waiting { output } => {
 ///             let input = board.prompt(&output);
 ///             let event = board.decide(&output, input)?;
 ///             if matches!(event, Event::Hu { .. }) { break; }
 ///         }
-///         (events, StepResult::Over) => {
-///             for e in &events { println!("{e:?}"); }
-///             break;
-///         }
+///         StepResult::Over => break,
 ///     }
 /// }
 /// ```
@@ -99,17 +95,21 @@ impl<P: Player> Board<P> {
         Input::Reactions(choices)
     }
 
-    /// Auto-advance and return all committed events with the result.
-    pub fn step(&mut self) -> Result<(Vec<Event>, StepResult), BoardError> {
-        let mut events = Vec::new();
+    /// Auto-advance through mechanical phases. Calls `on_event` for each
+    /// effective event (draws). Skips and turn-advances are absorbed.
+    pub fn step(
+        &mut self,
+        mut on_event: impl FnMut(&Event),
+    ) -> Result<StepResult, BoardError> {
         loop {
             let output = self.state.query();
             match output {
                 Output::NeedDrawTile => {
                     if self.state.wall.is_empty() {
-                        return Ok((events, StepResult::Over));
+                        return Ok(StepResult::Over);
                     }
-                    events.push(self.state.apply(Input::DrawTile));
+                    let event = self.state.apply(Input::DrawTile);
+                    on_event(&event);
                 }
                 Output::NeedSelfAction { ref options }
                     if options.is_empty() =>
@@ -124,7 +124,7 @@ impl<P: Player> Board<P> {
                     self.state.apply(Input::Reactions(vec![]));
                 }
                 output => {
-                    return Ok((events, StepResult::Waiting { output }));
+                    return Ok(StepResult::Waiting { output });
                 }
             }
         }
