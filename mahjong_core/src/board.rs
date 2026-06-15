@@ -3,9 +3,18 @@ use std::collections::HashMap;
 use crate::round::{Event, Input, Output, State};
 use crate::structs::Wind;
 
+/// What a player decided to do given their available options.
+#[derive(Debug, Clone, Copy)]
+pub enum Decision {
+    /// Pick one of the available events.
+    Pick(Event),
+    /// Exit the game (e.g. user quit to menu).
+    Exit,
+}
+
 /// Injected per-seat decision maker.
 pub trait Player {
-    fn decide(&self, options: &[Event]) -> Event;
+    fn decide(&self, options: &[Event]) -> Decision;
 }
 
 // ── Public types ──
@@ -27,6 +36,22 @@ pub enum BoardError {
 pub enum GameResult {
     Hu { winner: Wind },
     Draw,
+}
+
+/// What `Board::run()` returns after the game loop finishes.
+#[derive(Debug, Clone, Copy)]
+pub enum BoardOutput {
+    /// The game concluded normally (Hu or draw).
+    GameConcluded(GameResult),
+    /// A player exited mid-game (e.g. user quit to menu).
+    UserExited,
+}
+
+/// Result of prompting a player — either a concrete action or an exit signal.
+#[derive(Debug, Clone)]
+enum Prompted {
+    Action(Input),
+    Exit,
 }
 
 // ── Board ──
@@ -68,14 +93,24 @@ impl<P: Player> Board<P> {
     }
 
     /// Collect decisions from all relevant players and wrap into `Input`.
-    fn prompt(&self, output: &Output) -> Input {
+    fn prompt(&self, output: &Output) -> Prompted {
         match output {
-            Output::NeedSelfAction { options } => Input::SelfAction(
-                self.players[self.state.turn as usize].decide(options),
-            ),
-            Output::NeedDiscard { options } => Input::Discard(
-                self.players[self.state.turn as usize].decide(options),
-            ),
+            Output::NeedSelfAction { options } => {
+                match self.players[self.state.turn as usize].decide(options) {
+                    Decision::Pick(event) => {
+                        Prompted::Action(Input::SelfAction(event))
+                    }
+                    Decision::Exit => Prompted::Exit,
+                }
+            }
+            Output::NeedDiscard { options } => {
+                match self.players[self.state.turn as usize].decide(options) {
+                    Decision::Pick(event) => {
+                        Prompted::Action(Input::Discard(event))
+                    }
+                    Decision::Exit => Prompted::Exit,
+                }
+            }
             Output::NeedReactions { options } => {
                 self.prompt_reactions(options)
             }
@@ -84,16 +119,19 @@ impl<P: Player> Board<P> {
     }
 
     /// Collect reactions from each seat with options.
-    fn prompt_reactions(&self, options: &[Event]) -> Input {
+    fn prompt_reactions(&self, options: &[Event]) -> Prompted {
         let mut by_seat: HashMap<Wind, Vec<Event>> = HashMap::new();
         for event in options {
             by_seat.entry(event.seat()).or_default().push(*event);
         }
         let mut choices = Vec::new();
         for (seat, seat_options) in by_seat {
-            choices.push(self.players[seat as usize].decide(&seat_options));
+            match self.players[seat as usize].decide(&seat_options) {
+                Decision::Pick(event) => choices.push(event),
+                Decision::Exit => return Prompted::Exit,
+            }
         }
-        Input::Reactions(choices)
+        Prompted::Action(Input::Reactions(choices))
     }
 
     /// Auto-advance through mechanical phases. Calls `on_event` for each
@@ -132,7 +170,7 @@ impl<P: Player> Board<P> {
     }
 
     /// Validate and apply a player's decision.
-    fn decide(
+    fn validate_and_apply(
         &mut self,
         expected: &Output,
         input: Input,
@@ -160,10 +198,11 @@ impl<P: Player> Board<P> {
         }
     }
 
-    /// Run the game loop until the round ends.
+    /// Run the game loop until the round ends or a player exits.
     ///
     /// `on_event` is called for every committed event.
-    /// `on_end` is called once with the game result (Hu winner or draw).
+    /// `on_end` is called once with the game result (Hu winner or draw)
+    /// — but only when the game concludes normally, not on user exit.
     ///
     /// Returns `Err` only on invalid player input — the caller typically
     /// unwraps, since the UI layer should guard against invalid choices.
@@ -171,23 +210,27 @@ impl<P: Player> Board<P> {
         &mut self,
         mut on_event: impl FnMut(&Event),
         on_end: impl Fn(GameResult),
-    ) -> Result<(), BoardError> {
+    ) -> Result<BoardOutput, BoardError> {
         loop {
             match self.step(|e| on_event(e))? {
                 StepResult::Waiting { output } => {
-                    let input = self.prompt(&output);
-                    let event = self.decide(&output, input)?;
+                    let input = match self.prompt(&output) {
+                        Prompted::Action(input) => input,
+                        Prompted::Exit => return Ok(BoardOutput::UserExited),
+                    };
+                    let event = self.validate_and_apply(&output, input)?;
                     on_event(&event);
                     if matches!(event, Event::Hu { .. }) {
-                        on_end(GameResult::Hu {
+                        let result = GameResult::Hu {
                             winner: event.seat(),
-                        });
-                        return Ok(());
+                        };
+                        on_end(result);
+                        return Ok(BoardOutput::GameConcluded(result));
                     }
                 }
                 StepResult::Over => {
                     on_end(GameResult::Draw);
-                    return Ok(());
+                    return Ok(BoardOutput::GameConcluded(GameResult::Draw));
                 }
             }
         }

@@ -1,31 +1,69 @@
 use std::io::{self, BufRead, Write};
 
-use mahjong_core::board::{Board, GameResult, Player};
+use mahjong_core::board::{Board, BoardOutput, Decision, GameResult, Player};
 use mahjong_core::round::{Event, State};
 use mahjong_core::structs::Wind;
 
+// ── Main ──
+
 fn main() {
+    loop {
+        match main_menu() {
+            MenuChoice::Quit => {
+                println!("Goodbye!");
+                break;
+            }
+            MenuChoice::StartGame => run_game(),
+        }
+    }
+}
+
+// ── Main Menu ──
+
+enum MenuChoice {
+    StartGame,
+    Quit,
+}
+
+fn main_menu() -> MenuChoice {
+    println!("\n━━━ Mahjong ━━━");
+    println!("  1. Start new game");
+    println!("  2. Quit");
+    loop {
+        print!("Choice: ");
+        io::stdout().flush().ok();
+        let mut line = String::new();
+        io::stdin().lock().read_line(&mut line).ok();
+        match line.trim() {
+            "1" => return MenuChoice::StartGame,
+            "2" | "q" => return MenuChoice::Quit,
+            _ => println!("  Invalid — enter 1 or 2."),
+        }
+    }
+}
+
+// ── Game Runner ──
+
+fn run_game() {
     let mut state = State::new(Wind::East, Wind::East);
     state.init();
 
     let players = [CliPlayer, CliPlayer, CliPlayer, CliPlayer];
     let mut board = Board::new(state, players);
 
-    println!("━━━ Mahjong CLI Demo ━━━");
-    println!("Type the number of your choice, or 'q' to quit.\n");
+    println!("\n── Game Start ──");
 
-    board
-        .run(print_event, |result| match result {
-            GameResult::Hu { winner } => {
-                println!("\n🎉 {} wins with Hu!\n", wind_name(winner));
-            }
-            GameResult::Draw => {
-                println!("\nWall is empty — draw game.");
-            }
-        })
-        .unwrap();
-
-    println!("── Game Over ──");
+    match board.run(print_event, print_on_end) {
+        Ok(BoardOutput::GameConcluded(_)) => {
+            println!("── Game Over ──");
+        }
+        Ok(BoardOutput::UserExited) => {
+            println!("\nReturning to main menu.\n");
+        }
+        Err(e) => {
+            println!("\nError: {:?}", e);
+        }
+    }
 }
 
 // ── CLI Player ──
@@ -33,29 +71,28 @@ fn main() {
 struct CliPlayer;
 
 impl Player for CliPlayer {
-    fn decide(&self, options: &[Event]) -> Event {
+    fn decide(&self, options: &[Event]) -> Decision {
         println!();
         pick_event(options, "option")
     }
 }
 
-fn pick_event(options: &[Event], noun: &str) -> Event {
+fn pick_event(options: &[Event], noun: &str) -> Decision {
     for (i, ev) in options.iter().enumerate() {
         println!("  {}. {:?}", i + 1, ev);
     }
     loop {
-        print!("Choose {noun} (1-{}, q to quit): ", options.len());
+        print!("Choose {noun} (1-{}, q=quit to menu): ", options.len());
         io::stdout().flush().ok();
         let mut line = String::new();
         io::stdin().lock().read_line(&mut line).ok();
         let line = line.trim();
         if line == "q" || line == "quit" {
-            println!("Game ended by player.");
-            std::process::exit(0);
+            return Decision::Exit;
         }
         if let Ok(n) = line.parse::<usize>() {
             if n >= 1 && n <= options.len() {
-                return options[n - 1];
+                return Decision::Pick(options[n - 1]);
             }
         }
         println!("  Invalid — enter 1-{} or q.", options.len());
@@ -64,9 +101,17 @@ fn pick_event(options: &[Event], noun: &str) -> Event {
 
 // ── Formatting helpers ──
 
-/// Print an event to the event log.
 fn print_event(e: &Event) {
     println!("  {:?}", e);
+}
+
+fn print_on_end(result: GameResult) {
+    match result {
+        GameResult::Hu { winner } => {
+            println!("{} wins with Hu!", wind_name(winner))
+        }
+        GameResult::Draw => println!("Wall is empty — draw game."),
+    }
 }
 
 fn wind_name(w: Wind) -> &'static str {
