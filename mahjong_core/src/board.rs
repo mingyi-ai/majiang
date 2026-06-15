@@ -1,20 +1,20 @@
 use std::collections::HashMap;
 
-use crate::round::{Event, Input, Output, State};
+use crate::round::{GameEvent, Input, Output, PlayerAction, State};
 use crate::structs::Wind;
 
 /// What a player decided to do given their available options.
 #[derive(Debug, Clone, Copy)]
 pub enum Decision {
-    /// Pick one of the available events.
-    Pick(Event),
+    /// Pick one of the available actions.
+    Pick(PlayerAction),
     /// Exit the game (e.g. user quit to menu).
     Exit,
 }
 
 /// Injected per-seat decision maker.
 pub trait Player {
-    fn decide(&self, options: &[Event]) -> Decision;
+    fn decide(&self, options: &[PlayerAction]) -> Decision;
 }
 
 // ── Public types ──
@@ -47,7 +47,7 @@ pub enum BoardOutput {
     UserExited,
 }
 
-/// Result of prompting a player — either a concrete action or an exit signal.
+/// Result of prompting a player — either a concrete input or an exit signal.
 #[derive(Debug, Clone)]
 enum Prompted {
     Action(Input),
@@ -62,14 +62,14 @@ enum Prompted {
 ///
 /// ```ignore
 /// use mahjong_core::board::*;
-/// use mahjong_core::round::Event;
+/// use mahjong_core::round::PlayerAction;
 /// use mahjong_core::structs::Wind;
 /// use rand::rngs::StdRng;
 /// use rand::SeedableRng;
 ///
 /// struct Dummy;
 /// impl Player for Dummy {
-///     fn decide(&self, _options: &[Event]) -> Decision {
+///     fn decide(&self, _options: &[PlayerAction]) -> Decision {
 ///         Decision::Exit
 ///     }
 /// }
@@ -127,37 +127,35 @@ impl<'a, P: Player> Board<'a, P> {
         match output {
             Output::NeedSelfAction { options } => {
                 match self.players[self.state.turn as usize].decide(options) {
-                    Decision::Pick(event) => {
-                        Prompted::Action(Input::SelfAction(event))
+                    Decision::Pick(action) => {
+                        Prompted::Action(Input::SelfAction(action))
                     }
                     Decision::Exit => Prompted::Exit,
                 }
             }
             Output::NeedDiscard { options } => {
                 match self.players[self.state.turn as usize].decide(options) {
-                    Decision::Pick(event) => {
-                        Prompted::Action(Input::Discard(event))
+                    Decision::Pick(action) => {
+                        Prompted::Action(Input::Discard(action))
                     }
                     Decision::Exit => Prompted::Exit,
                 }
             }
-            Output::NeedReactions { options } => {
-                self.prompt_reactions(options)
-            }
+            Output::NeedReactions { options } => self.prompt_reactions(options),
             Output::NeedDrawTile => unreachable!(),
         }
     }
 
     /// Collect reactions from each seat with options.
-    fn prompt_reactions(&self, options: &[Event]) -> Prompted {
-        let mut by_seat: HashMap<Wind, Vec<Event>> = HashMap::new();
-        for event in options {
-            by_seat.entry(event.seat()).or_default().push(*event);
+    fn prompt_reactions(&self, options: &[PlayerAction]) -> Prompted {
+        let mut by_seat: HashMap<Wind, Vec<PlayerAction>> = HashMap::new();
+        for action in options {
+            by_seat.entry(action.seat()).or_default().push(*action);
         }
         let mut choices = Vec::new();
         for (seat, seat_options) in by_seat {
             match self.players[seat as usize].decide(&seat_options) {
-                Decision::Pick(event) => choices.push(event),
+                Decision::Pick(action) => choices.push(action),
                 Decision::Exit => return Prompted::Exit,
             }
         }
@@ -165,10 +163,10 @@ impl<'a, P: Player> Board<'a, P> {
     }
 
     /// Auto-advance through mechanical phases. Calls `on_event` for each
-    /// effective event (draws). Skips and turn-advances are absorbed.
+    /// draw event produced during mechanical phases.
     fn step(
         &mut self,
-        mut on_event: impl FnMut(&Event),
+        mut on_event: impl FnMut(&GameEvent),
     ) -> Result<StepResult, BoardError> {
         loop {
             let output = self.state.query();
@@ -177,13 +175,14 @@ impl<'a, P: Player> Board<'a, P> {
                     if self.state.wall.is_empty() {
                         return Ok(StepResult::Over);
                     }
-                    let event = self.state.apply(Input::DrawTile);
-                    on_event(&event);
+                    if let Some(event) = self.state.apply(Input::DrawTile) {
+                        on_event(&event);
+                    }
                 }
                 Output::NeedSelfAction { ref options }
                     if options.is_empty() =>
                 {
-                    self.state.apply(Input::SelfAction(Event::Skip {
+                    self.state.apply(Input::SelfAction(PlayerAction::Skip {
                         seat: self.state.turn,
                     }));
                 }
@@ -204,19 +203,25 @@ impl<'a, P: Player> Board<'a, P> {
         &mut self,
         expected: &Output,
         input: Input,
-    ) -> Result<Event, BoardError> {
+    ) -> Result<Option<GameEvent>, BoardError> {
         match (expected, &input) {
-            (Output::NeedSelfAction { options }, Input::SelfAction(event)) => {
-                check_in_options(event, options, "self-action")?;
+            (
+                Output::NeedSelfAction { options },
+                Input::SelfAction(action),
+            ) => {
+                check_in_options(action, options, "self-action")?;
                 Ok(self.state.apply(input))
             }
 
-            (Output::NeedDiscard { options }, Input::Discard(event)) => {
-                check_in_options(event, options, "discard")?;
+            (Output::NeedDiscard { options }, Input::Discard(action)) => {
+                check_in_options(action, options, "discard")?;
                 Ok(self.state.apply(input))
             }
 
-            (Output::NeedReactions { options }, Input::Reactions(choices)) => {
+            (
+                Output::NeedReactions { options },
+                Input::Reactions(choices),
+            ) => {
                 check_reactions(choices, options, self.state.turn)?;
                 Ok(self.state.apply(input))
             }
@@ -231,24 +236,26 @@ impl<'a, P: Player> Board<'a, P> {
     /// Run the game loop until the round ends or a player exits.
     ///
     /// 1. **Deal phase**: the initial 13 tiles are dealt to each seat.
-    ///    Each deal event (DrawTile with flower replacement) is forwarded
-    ///    to `on_initial_deal`. In a real UI, each player would see only
-    ///    their own deal events (private).
+    ///    Each deal event is forwarded to `on_initial_deal`. In a real UI,
+    ///    each player would see only their own deal events (private).
     ///
     /// 2. **Game loop**: `on_event` is called for every committed event
-    ///    (draws, discards, reactions, turn advances) — the public stream
-    ///    visible to all players.
+    ///    visible at the table (tile draws and real player actions).
+    ///    Internal mechanics (skips, turn advances) are not reported.
+    ///
+    /// The event feed is sufficient for the caller to reconstruct game
+    /// state: a Skip is implicit when a Discard follows a DrawTile
+    /// without an intervening Kong/Hu event.
     ///
     /// Returns `Err` only on invalid player input — the caller typically
     /// unwraps, since the UI layer should guard against invalid choices.
     pub fn run(
         &mut self,
-        mut on_initial_deal: impl FnMut(&Event),
-        mut on_event: impl FnMut(&Event),
+        mut on_initial_deal: impl FnMut(&GameEvent),
+        mut on_event: impl FnMut(&GameEvent),
     ) -> Result<BoardOutput, BoardError> {
         // Deal initial tiles. Events go to the deal callback so the UI
-        // can handle them privately per-player (e.g. show each seat
-        // only their own tiles).
+        // can handle them privately per-player.
         for event in self.state.deal() {
             on_initial_deal(&event);
         }
@@ -260,12 +267,13 @@ impl<'a, P: Player> Board<'a, P> {
                         Prompted::Action(input) => input,
                         Prompted::Exit => return Ok(BoardOutput::UserExited),
                     };
-                    let event = self.validate_and_apply(&output, input)?;
-                    on_event(&event);
-                    if matches!(event, Event::Hu { .. }) {
-                        return Ok(BoardOutput::GameConcluded(GameResult::Hu {
-                            winner: event.seat(),
-                        }));
+                    if let Some(event) = self.validate_and_apply(&output, input)? {
+                        on_event(&event);
+                        if matches!(&event, GameEvent::Action(PlayerAction::Hu { .. })) {
+                            return Ok(BoardOutput::GameConcluded(GameResult::Hu {
+                                winner: event.seat(),
+                            }));
+                        }
                     }
                 }
                 StepResult::Over => {
@@ -278,26 +286,26 @@ impl<'a, P: Player> Board<'a, P> {
 
 // ── Helpers ──
 
-/// Validates that `event` is in the available `options`.
+/// Validates that `action` is in the available `options`.
 fn check_in_options(
-    event: &Event,
-    options: &[Event],
+    action: &PlayerAction,
+    options: &[PlayerAction],
     ctx: &str,
 ) -> Result<(), BoardError> {
-    if options.contains(event) {
+    if options.contains(action) {
         Ok(())
     } else {
         Err(BoardError::InvalidInput(format!(
             "{} {:?} not in options",
-            ctx, event
+            ctx, action
         )))
     }
 }
 
 /// Validates reaction choices: no turn seat, no duplicates, each in options.
 fn check_reactions(
-    choices: &[Event],
-    options: &[Event],
+    choices: &[PlayerAction],
+    options: &[PlayerAction],
     turn: Wind,
 ) -> Result<(), BoardError> {
     let mut seen = 0u8;

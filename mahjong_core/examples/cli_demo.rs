@@ -1,7 +1,7 @@
 use std::io::{self, BufRead, Write};
 
 use mahjong_core::board::{Board, BoardOutput, Decision, GameResult, Player};
-use mahjong_core::round::Event;
+use mahjong_core::round::PlayerAction;
 use mahjong_core::structs::Wind;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
@@ -93,11 +93,11 @@ struct DemoPlayer {
 }
 
 impl Player for DemoPlayer {
-    fn decide(&self, options: &[Event]) -> Decision {
+    fn decide(&self, options: &[PlayerAction]) -> Decision {
         if self.is_cli {
             println!();
-            for (i, ev) in options.iter().enumerate() {
-                println!("  {}. {:?}", i + 1, ev);
+            for (i, action) in options.iter().enumerate() {
+                println!("  {}. {:?}", i + 1, action);
             }
             loop {
                 print!(
@@ -119,9 +119,7 @@ impl Player for DemoPlayer {
                 println!("  Invalid — enter 1-{} or q.", options.len());
             }
         } else {
-            // Dummy: always pick the first option. During reaction
-            // phases this is typically Skip; during discard/action
-            // phases it's the first valid action.
+            // Dummy: always pick the first option.
             Decision::Pick(options[0])
         }
     }

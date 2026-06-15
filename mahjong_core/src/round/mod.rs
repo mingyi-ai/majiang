@@ -1,24 +1,24 @@
 mod actions;
 mod state;
 
-pub use state::{Event, Phase, SeatState, State};
+pub use state::{GameEvent, Phase, PlayerAction, SeatState, State};
 
 use crate::structs::{Wall, Wind};
 
 #[derive(Debug, Clone)]
 pub enum Output {
     NeedDrawTile,
-    NeedSelfAction { options: Vec<Event> },
-    NeedDiscard { options: Vec<Event> },
-    NeedReactions { options: Vec<Event> },
+    NeedSelfAction { options: Vec<PlayerAction> },
+    NeedDiscard { options: Vec<PlayerAction> },
+    NeedReactions { options: Vec<PlayerAction> },
 }
 
 #[derive(Debug, Clone)]
 pub enum Input {
     DrawTile,
-    SelfAction(Event),
-    Discard(Event),
-    Reactions(Vec<Event>),
+    SelfAction(PlayerAction),
+    Discard(PlayerAction),
+    Reactions(Vec<PlayerAction>),
 }
 
 impl State {
@@ -38,14 +38,8 @@ impl State {
     /// Create a fully initialized state: shuffle the wall using the
     /// caller-provided RNG (enabling deterministic seeds for testing).
     ///
-    /// Hands are empty — tiles are dealt lazily when the board starts
-    /// running, producing DrawTile events as part of the normal event
-    /// stream.
-    pub fn new_shuffled<R: rand::Rng>(
-        wind: Wind,
-        turn: Wind,
-        rng: &mut R,
-    ) -> Self {
+    /// Hands are empty — tiles are dealt when the board starts running.
+    pub fn new_shuffled<R: rand::Rng>(wind: Wind, turn: Wind, rng: &mut R) -> Self {
         let mut wall = Wall::new_mcr();
         wall.shuffle(rng);
         Self {
@@ -57,13 +51,12 @@ impl State {
         }
     }
 
-    /// Deal 13 non-flower tiles to each seat. Yields one `DrawTile` event
+    /// Deal 13 non-flower tiles to each seat. Yields one `GameEvent::DrawTile`
     /// per tile drawn (including flowers, which trigger replacement draws).
     ///
     /// Must only be called on a fresh state with empty hands — called by
-    /// `Board::run()` at the start of each round. Not safe for snapshot
-    /// resume (see MEMORY.md).
-    pub(crate) fn deal(&mut self) -> Vec<Event> {
+    /// `Board::run()` at the start of each round.
+    pub(crate) fn deal(&mut self) -> Vec<GameEvent> {
         let mut events = Vec::new();
         for seat in Wind::iter() {
             let hand = &mut self.seats[seat as usize].hand;
@@ -78,7 +71,7 @@ impl State {
                 if !tile.is_flower() {
                     non_flower_count -= 1;
                 }
-                events.push(Event::DrawTile { seat, tile });
+                events.push(GameEvent::DrawTile { seat, tile });
             }
         }
         events
@@ -102,32 +95,40 @@ impl State {
         }
     }
 
-    /// Apply an input action, mutate state, return the committed event.
-    /// Always returns an event — turn advances are explicit via `AdvanceTurnTo`.
-    pub fn apply(&mut self, input: Input) -> Event {
+    /// Apply an input action, mutate state.
+    ///
+    /// Returns `Some(GameEvent)` for events visible at the table
+    /// (tile draws, real player actions). Returns `None` for internal
+    /// mechanics (skips, turn advances) that the caller doesn't need
+    /// to see — the flow is inferred from subsequent events.
+    pub fn apply(&mut self, input: Input) -> Option<GameEvent> {
         match (self.phase, input.clone()) {
             (Phase::RequestDrawTile, Input::DrawTile) => {
                 let tile = self.draw_tile();
                 if !tile.is_flower() {
                     self.phase = Phase::RequestSelfAction(tile);
                 }
-                Event::DrawTile {
+                Some(GameEvent::DrawTile {
                     seat: self.turn,
                     tile,
+                })
+            }
+            (Phase::RequestSelfAction(_), Input::SelfAction(action)) => {
+                self.phase = self.apply_self_action(action);
+                if matches!(action, PlayerAction::Skip { .. }) {
+                    None // skip is internal; next event is the discard
+                } else {
+                    Some(GameEvent::Action(action))
                 }
             }
-            (Phase::RequestSelfAction(_), Input::SelfAction(event)) => {
-                self.phase = self.apply_self_action(event);
-                event
-            }
-            (Phase::RequestDiscard, Input::Discard(event)) => {
-                self.phase = self.apply_discard(event);
-                event
+            (Phase::RequestDiscard, Input::Discard(action)) => {
+                self.phase = self.apply_discard(action);
+                Some(GameEvent::Action(action))
             }
             (Phase::RequestReaction(tile), Input::Reactions(choices)) => {
-                let event = self.resolve_reactions(&choices);
-                (self.turn, self.phase) = self.apply_reaction(event, tile);
-                event
+                let action = self.resolve_reactions(&choices);
+                (self.turn, self.phase) = self.apply_reaction(action, tile);
+                action.map(GameEvent::Action)
             }
             _ => panic!(
                 "Invalid phase-action combination: {:?} {:?}",

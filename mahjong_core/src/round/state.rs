@@ -34,72 +34,49 @@ pub struct State {
     pub seats: [SeatState; 4],
 }
 
+/// A choice a player can make. These appear in `Output` options and are
+/// returned by `Player::decide()`. Every variant has a clear actor.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Event {
-    DrawTile {
-        seat: Wind,
-        tile: Tile,
-    },
-
-    Skip {
-        seat: Wind,
-    },
-
-    ConcealedKong {
-        seat: Wind,
-        tile: Tile,
-    },
-    AddedKong {
-        seat: Wind,
-        tile: Tile,
-    },
-
-    Chow {
-        seat: Wind,
-        tile: Tile,
-        from: Wind,
-        start: Tile,
-    },
-    Pong {
-        seat: Wind,
-        from: Wind,
-        tile: Tile,
-    },
-    Kong {
-        seat: Wind,
-        from: Wind,
-        tile: Tile,
-    },
-    Hu {
-        seat: Wind,
-        from: Wind,
-        tile: Tile,
-    },
-
-    Discard {
-        seat: Wind,
-        tile: Tile,
-    },
-
-    AdvanceTurnTo {
-        seat: Wind,
-    },
+pub enum PlayerAction {
+    Skip { seat: Wind },
+    ConcealedKong { seat: Wind, tile: Tile },
+    AddedKong { seat: Wind, tile: Tile },
+    Chow { seat: Wind, tile: Tile, from: Wind, start: Tile },
+    Pong { seat: Wind, from: Wind, tile: Tile },
+    Kong { seat: Wind, from: Wind, tile: Tile },
+    Hu { seat: Wind, from: Wind, tile: Tile },
+    Discard { seat: Wind, tile: Tile },
 }
 
-impl Event {
-    /// Extract the seat from any event variant.
+impl PlayerAction {
     pub fn seat(&self) -> Wind {
         match self {
-            Event::DrawTile { seat, .. }
-            | Event::Skip { seat }
-            | Event::ConcealedKong { seat, .. }
-            | Event::AddedKong { seat, .. }
-            | Event::Hu { seat, .. }
-            | Event::Chow { seat, .. }
-            | Event::Pong { seat, .. }
-            | Event::Kong { seat, .. }
-            | Event::Discard { seat, .. }
-            | Event::AdvanceTurnTo { seat } => *seat,
+            PlayerAction::Skip { seat }
+            | PlayerAction::ConcealedKong { seat, .. }
+            | PlayerAction::AddedKong { seat, .. }
+            | PlayerAction::Hu { seat, .. }
+            | PlayerAction::Chow { seat, .. }
+            | PlayerAction::Pong { seat, .. }
+            | PlayerAction::Kong { seat, .. }
+            | PlayerAction::Discard { seat, .. } => *seat,
+        }
+    }
+}
+
+/// A notification from the engine to the caller. These are the events
+/// visible at the table: tiles drawn and actions taken. Internal
+/// mechanics (skips, turn advances) are not reported.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum GameEvent {
+    DrawTile { seat: Wind, tile: Tile },
+    Action(PlayerAction),
+}
+
+impl GameEvent {
+    pub fn seat(&self) -> Wind {
+        match self {
+            GameEvent::DrawTile { seat, .. } => *seat,
+            GameEvent::Action(action) => action.seat(),
         }
     }
 }
@@ -122,19 +99,19 @@ impl State {
 
     /// Returns the self-actions available for the current turn player
     /// given the tile just drawn.
-    pub(crate) fn self_action_options(&self, drawn_tile: Tile) -> Vec<Event> {
+    pub(crate) fn self_action_options(&self, drawn_tile: Tile) -> Vec<PlayerAction> {
         let hand = &self.seats[self.turn as usize].hand;
-        let mut actions: Vec<Event> = Vec::new();
+        let mut actions: Vec<PlayerAction> = Vec::new();
 
         for tile in hand.concealed_kong_options() {
-            actions.push(Event::ConcealedKong {
+            actions.push(PlayerAction::ConcealedKong {
                 seat: self.turn,
                 tile,
             });
         }
 
         for tile in hand.added_kong_options() {
-            actions.push(Event::AddedKong {
+            actions.push(PlayerAction::AddedKong {
                 seat: self.turn,
                 tile,
             });
@@ -142,7 +119,7 @@ impl State {
 
         // TODO: self hu check — needs hu solver integration
         if hand.can_hu() {
-            actions.push(Event::Hu {
+            actions.push(PlayerAction::Hu {
                 seat: self.turn,
                 from: self.turn,
                 tile: drawn_tile,
@@ -150,7 +127,7 @@ impl State {
         }
 
         if !actions.is_empty() {
-            actions.push(Event::Skip { seat: self.turn });
+            actions.push(PlayerAction::Skip { seat: self.turn });
         }
 
         actions
@@ -160,34 +137,34 @@ impl State {
     /// Returns the resulting phase:
     ///   `ConcealedKong` / `AddedKong` / `Hu` → `RequestDrawTile`
     ///   `Skip` → `RequestDiscard`
-    pub(crate) fn apply_self_action(&mut self, event: Event) -> Phase {
+    pub(crate) fn apply_self_action(&mut self, action: PlayerAction) -> Phase {
         let hand = &mut self.seats[self.turn as usize].hand;
-        match event {
-            Event::ConcealedKong { tile, .. } => {
+        match action {
+            PlayerAction::ConcealedKong { tile, .. } => {
                 hand.kong(tile, true);
                 Phase::RequestDrawTile
             }
-            Event::AddedKong { tile, .. } => {
+            PlayerAction::AddedKong { tile, .. } => {
                 hand.kong_from_pong(tile);
                 Phase::RequestDrawTile
             }
-            Event::Hu { .. } => Phase::RequestDrawTile,
-            Event::Skip { seat } => {
+            PlayerAction::Hu { .. } => Phase::RequestDrawTile,
+            PlayerAction::Skip { seat } => {
                 debug_assert_eq!(
                     seat, self.turn,
-                    "Skip event seat must match current turn"
+                    "Skip action seat must match current turn"
                 );
                 Phase::RequestDiscard
             }
-            _ => panic!("Invalid event for self-action: {:?}", event),
+            _ => panic!("Invalid action for self-action: {:?}", action),
         }
     }
 
-    pub(crate) fn discard_options(&self) -> Vec<Event> {
+    pub(crate) fn discard_options(&self) -> Vec<PlayerAction> {
         let concealed = &self.seats[self.turn as usize].hand.concealed;
         Tile::iter()
             .filter(|t| !t.is_flower() && concealed.count(*t) > 0)
-            .map(|tile| Event::Discard {
+            .map(|tile| PlayerAction::Discard {
                 seat: self.turn,
                 tile,
             })
@@ -196,49 +173,52 @@ impl State {
 
     /// Remove the discarded tile from hand. Returns the resulting phase
     /// (`RequestReaction` with the tile) for the caller to assign.
-    pub(crate) fn apply_discard(&mut self, event: Event) -> Phase {
-        let tile = match event {
-            Event::Discard { tile, .. } => tile,
-            _ => panic!("Invalid event for discard: {:?}", event),
+    pub(crate) fn apply_discard(&mut self, action: PlayerAction) -> Phase {
+        let tile = match action {
+            PlayerAction::Discard { tile, .. } => tile,
+            _ => panic!("Invalid action for discard: {:?}", action),
         };
         self.seats[self.turn as usize].hand.remove_tile(tile, 1);
         Phase::RequestReaction(tile)
     }
 
-    /// Apply resolved reaction event. Returns the resulting (seat, phase) for the caller to assign.
+    /// Apply a resolved reaction action. Returns the resulting (seat, phase).
+    ///
+    /// `None` means all players skipped — the discard is placed in the river
+    /// and the turn advances.
     pub(crate) fn apply_reaction(
         &mut self,
-        event: Event,
+        action: Option<PlayerAction>,
         discard: Tile,
     ) -> (Wind, Phase) {
-        match event {
-            Event::Chow {
+        match action {
+            Some(PlayerAction::Chow {
                 seat, tile, start, ..
-            } => {
+            }) => {
                 self.seats[seat as usize].hand.chow(start, tile);
                 (seat, Phase::RequestDiscard)
             }
-            Event::Pong { seat, tile, .. } => {
+            Some(PlayerAction::Pong { seat, tile, .. }) => {
                 self.seats[seat as usize].hand.pong(tile);
                 (seat, Phase::RequestDiscard)
             }
-            Event::Kong { seat, tile, .. } => {
+            Some(PlayerAction::Kong { seat, tile, .. }) => {
                 self.seats[seat as usize].hand.kong(tile, false);
                 (seat, Phase::RequestDrawTile)
             }
-            Event::Hu { seat, .. } => (seat, Phase::RequestDrawTile),
-            Event::AdvanceTurnTo { seat } => {
+            Some(PlayerAction::Hu { seat, .. }) => (seat, Phase::RequestDrawTile),
+            None => {
                 // All players skipped; place discard in river and advance turn
                 self.seats[self.turn as usize].push_discard(discard);
-                (seat, Phase::RequestDrawTile)
+                (self.turn.next(), Phase::RequestDrawTile)
             }
-            _ => panic!("Invalid event for reaction: {:?}", event),
+            _ => panic!("Invalid action for reaction: {:?}", action),
         }
     }
 
     /// Compute possible reactions from all other seats for a given discard tile.
-    /// Returns a flat list of all available reaction events across all seats.
-    pub(crate) fn reaction_options(&self, tile: Tile) -> Vec<Event> {
+    /// Returns a flat list of all available reaction actions across all seats.
+    pub(crate) fn reaction_options(&self, tile: Tile) -> Vec<PlayerAction> {
         let mut all = Vec::new();
         for seat in Wind::iter() {
             if seat == self.turn {
@@ -250,15 +230,14 @@ impl State {
     }
 
     /// Compute possible reactions for a single seat given a discard tile.
-    /// Returns an empty vec if no reactions are possible for this seat.
-    fn reaction_options_by_seat(&self, seat: Wind, tile: Tile) -> Vec<Event> {
+    fn reaction_options_by_seat(&self, seat: Wind, tile: Tile) -> Vec<PlayerAction> {
         let hand = &self.seats[seat as usize].hand;
-        let mut actions: Vec<Event> = Vec::new();
+        let mut actions: Vec<PlayerAction> = Vec::new();
 
         // Only the next player in turn order can chow
         if seat == self.turn.next() {
             for start in hand.chow_start_options(tile) {
-                actions.push(Event::Chow {
+                actions.push(PlayerAction::Chow {
                     seat,
                     tile,
                     from: self.turn,
@@ -268,7 +247,7 @@ impl State {
         }
 
         if hand.can_pong(tile) {
-            actions.push(Event::Pong {
+            actions.push(PlayerAction::Pong {
                 seat,
                 from: self.turn,
                 tile,
@@ -276,7 +255,7 @@ impl State {
         }
 
         if hand.can_kong(tile) {
-            actions.push(Event::Kong {
+            actions.push(PlayerAction::Kong {
                 seat,
                 from: self.turn,
                 tile,
@@ -284,7 +263,7 @@ impl State {
         }
 
         if hand.can_hu_on(tile) {
-            actions.push(Event::Hu {
+            actions.push(PlayerAction::Hu {
                 seat,
                 from: self.turn,
                 tile,
@@ -292,7 +271,7 @@ impl State {
         }
 
         if !actions.is_empty() {
-            actions.push(Event::Skip { seat });
+            actions.push(PlayerAction::Skip { seat });
         }
 
         actions
@@ -302,8 +281,8 @@ impl State {
     ///
     /// Priority: Hu(4) > Kong(3) > Pong(2) > Chow(1).
     /// Tiebreaker: closest seat clockwise from the discarder wins.
-    /// If all players skipped (or choices is empty), returns `AdvanceTurnTo`.
-    pub(crate) fn resolve_reactions(&self, choices: &[Event]) -> Event {
+    /// Returns `None` if all players skipped (or choices is empty).
+    pub(crate) fn resolve_reactions(&self, choices: &[PlayerAction]) -> Option<PlayerAction> {
         debug_assert!(
             {
                 let mut seen = 0u8;
@@ -320,12 +299,12 @@ impl State {
             "duplicate seat in reaction choices"
         );
 
-        let priority = |event: &Event| -> u8 {
-            match event {
-                Event::Hu { .. } => 4,
-                Event::Kong { .. } => 3,
-                Event::Pong { .. } => 2,
-                Event::Chow { .. } => 1,
+        let priority = |action: &PlayerAction| -> u8 {
+            match action {
+                PlayerAction::Hu { .. } => 4,
+                PlayerAction::Kong { .. } => 3,
+                PlayerAction::Pong { .. } => 2,
+                PlayerAction::Chow { .. } => 1,
                 _ => 0,
             }
         };
@@ -335,61 +314,14 @@ impl State {
 
         let winner = choices
             .iter()
-            .max_by_key(|event| {
-                (priority(event), std::cmp::Reverse(distance(event.seat())))
+            .max_by_key(|action| {
+                (priority(action), std::cmp::Reverse(distance(action.seat())))
             })
             .copied();
 
         match winner {
-            Some(Event::Skip { .. }) | None => Event::AdvanceTurnTo {
-                seat: self.turn.next(),
-            },
-            Some(event) => event,
+            Some(PlayerAction::Skip { .. }) | None => None,
+            Some(action) => Some(action),
         }
     }
 }
-
-// ── Legacy commented-out code (reference only) ──
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::bits::MahjongBitArray;
-//     use crate::tile::Tile::*;
-
-//     #[test]
-//     fn test_possible_reactions_by_seat() {
-//         let mut round = State::new(Wind::East);
-//         {
-//             let hand = &mut round.seats.get_mut(Wind::South).hand;
-//             hand.tiles.add_tile(Dot2.id());
-//             hand.tiles.add_tile(Dot3.id());
-//             hand.tiles.add_tile(Dot5.id());
-//             hand.tiles.add_tile(Dot6.id());
-//         }
-//         round.turn = Wind::East;
-//         let tile = Dot4;
-//         let reactions_south =
-//             round.possible_reactions_by_seat(Wind::South, tile).unwrap();
-
-//         assert_eq!(reactions_south.len(), 4);
-//         assert!(reactions_south.contains(&Reaction::Chow {
-//             seat: Wind::South,
-//             tile,
-//             from: Wind::East,
-//             chow: [Dot2, Dot3]
-//         }));
-//         assert!(reactions_south.contains(&Reaction::Chow {
-//             seat: Wind::South,
-//             tile,
-//             from: Wind::East,
-//             chow: [Dot3, Dot5]
-//         }));
-//         assert!(reactions_south.contains(&Reaction::Chow {
-//             seat: Wind::South,
-//             tile,
-//             from: Wind::East,
-//             chow: [Dot5, Dot6]
-//         }));
-//     }
-// }
