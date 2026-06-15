@@ -12,7 +12,7 @@ pub trait Player {
 
 /// Result of `Board::step()`.
 #[derive(Debug, Clone)]
-pub enum StepResult {
+enum StepResult {
     Waiting { output: Output },
     Over,
 }
