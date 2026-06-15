@@ -5,7 +5,7 @@ use crate::structs::Wind;
 
 /// Injected per-seat decision maker.
 pub trait Player {
-    fn decide(&self, output: &Output) -> Event;
+    fn decide(&self, options: &[Event]) -> Event;
 }
 
 // ── Public types ──
@@ -70,11 +70,11 @@ impl<P: Player> Board<P> {
     /// Collect decisions from all relevant players and wrap into `Input`.
     fn prompt(&self, output: &Output) -> Input {
         match output {
-            Output::NeedSelfAction { .. } => Input::SelfAction(
-                self.players[self.state.turn as usize].decide(output),
+            Output::NeedSelfAction { options } => Input::SelfAction(
+                self.players[self.state.turn as usize].decide(options),
             ),
-            Output::NeedDiscard { .. } => Input::Discard(
-                self.players[self.state.turn as usize].decide(output),
+            Output::NeedDiscard { options } => Input::Discard(
+                self.players[self.state.turn as usize].decide(options),
             ),
             Output::NeedReactions { options } => {
                 self.prompt_reactions(options)
@@ -91,10 +91,7 @@ impl<P: Player> Board<P> {
         }
         let mut choices = Vec::new();
         for (seat, seat_options) in by_seat {
-            let filtered = Output::NeedReactions {
-                options: seat_options,
-            };
-            choices.push(self.players[seat as usize].decide(&filtered));
+            choices.push(self.players[seat as usize].decide(&seat_options));
         }
         Input::Reactions(choices)
     }

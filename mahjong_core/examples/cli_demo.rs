@@ -1,7 +1,7 @@
 use std::io::{self, BufRead, Write};
 
 use mahjong_core::board::{Board, GameResult, Player};
-use mahjong_core::round::{Event, Output, State};
+use mahjong_core::round::{Event, State};
 use mahjong_core::structs::Wind;
 
 fn main() {
@@ -33,26 +33,9 @@ fn main() {
 struct CliPlayer;
 
 impl Player for CliPlayer {
-    fn decide(&self, output: &Output) -> Event {
+    fn decide(&self, options: &[Event]) -> Event {
         println!();
-        match output {
-            Output::NeedSelfAction { options } => {
-                let seat = options.first().map(|e| e.seat()).unwrap();
-                println!("[{}] Self-action: pick one", wind_name(seat));
-                pick_event(options, "action")
-            }
-            Output::NeedDiscard { options } => {
-                let seat = options.first().map(|e| e.seat()).unwrap();
-                println!("[{}] Discard: pick a tile", wind_name(seat));
-                pick_event(options, "tile")
-            }
-            Output::NeedReactions { options } => {
-                let seat = options.first().map(|e| e.seat()).unwrap();
-                println!("[{}] Reaction: pick an option", wind_name(seat));
-                pick_event(options, "option")
-            }
-            Output::NeedDrawTile => unreachable!(),
-        }
+        pick_event(options, "option")
     }
 }
 
