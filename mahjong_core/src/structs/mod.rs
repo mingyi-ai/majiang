@@ -52,13 +52,11 @@ impl Wall {
                 idx += 1;
             }
         }
-        // No shuffling for now; deterministic wall
         Self { tiles, pointer: 0 }
     }
 
-    pub(crate) fn shuffle(&mut self) {
-        let mut rng = rand::rng();
-        self.tiles.shuffle(&mut rng);
+    pub(crate) fn shuffle<R: rand::Rng>(&mut self, rng: &mut R) {
+        self.tiles.shuffle(rng);
     }
 
     /// Yields the next tile from the wall, if available.

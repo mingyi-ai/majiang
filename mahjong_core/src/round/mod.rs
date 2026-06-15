@@ -22,6 +22,9 @@ pub enum Input {
 }
 
 impl State {
+    /// Create an uninitialized state for low-level use (deserialization,
+    /// replay). The wall is NOT shuffled and hands are empty. Most callers
+    /// should use [`new_shuffled`] instead.
     pub fn new(wind: Wind, turn: Wind) -> Self {
         Self {
             wind,
@@ -32,13 +35,38 @@ impl State {
         }
     }
 
-    /// Shuffle the wall, deal the initial 13 tiles to each seat,
-    /// replace flowers, and set the first draw phase.
-    pub fn init(&mut self) {
-        self.wall.shuffle();
+    /// Create a fully initialized state: shuffle the wall using the
+    /// caller-provided RNG (enabling deterministic seeds for testing).
+    ///
+    /// Hands are empty — tiles are dealt lazily when the board starts
+    /// running, producing DrawTile events as part of the normal event
+    /// stream.
+    pub fn new_shuffled<R: rand::Rng>(
+        wind: Wind,
+        turn: Wind,
+        rng: &mut R,
+    ) -> Self {
+        let mut wall = Wall::new_mcr();
+        wall.shuffle(rng);
+        Self {
+            wind,
+            wall,
+            turn,
+            phase: Phase::RequestDrawTile,
+            seats: [SeatState::default(); 4],
+        }
+    }
+
+    /// Deal 13 non-flower tiles to each seat. Yields one `DrawTile` event
+    /// per tile drawn (including flowers, which trigger replacement draws).
+    ///
+    /// Must only be called on a fresh state with empty hands — called by
+    /// `Board::run()` at the start of each round. Not safe for snapshot
+    /// resume (see MEMORY.md).
+    pub(crate) fn deal(&mut self) -> Vec<Event> {
+        let mut events = Vec::new();
         for seat in Wind::iter() {
             let hand = &mut self.seats[seat as usize].hand;
-
             let mut non_flower_count = 13;
             while non_flower_count > 0 {
                 let tile = self
@@ -46,12 +74,14 @@ impl State {
                     .yield_tile()
                     .expect("Wall is empty during initial deal");
 
+                hand.add_tile(tile);
                 if !tile.is_flower() {
                     non_flower_count -= 1;
                 }
-                hand.add_tile(tile);
+                events.push(Event::DrawTile { seat, tile });
             }
         }
+        events
     }
 }
 

@@ -1,8 +1,10 @@
 use std::io::{self, BufRead, Write};
 
 use mahjong_core::board::{Board, BoardOutput, Decision, GameResult, Player};
-use mahjong_core::round::{Event, State};
+use mahjong_core::round::Event;
 use mahjong_core::structs::Wind;
+use rand::rngs::StdRng;
+use rand::SeedableRng;
 
 // ── Main ──
 
@@ -45,17 +47,25 @@ fn main_menu() -> MenuChoice {
 // ── Game Runner ──
 
 fn run_game() {
-    let mut state = State::new(Wind::East, Wind::East);
-    state.init();
+    // Seeded RNG for deterministic games (useful for debugging).
+    // Use `rand::rng()` for true randomness in production.
+    // Use `StdRng::seed_from_u64(n)` to reproduce a specific game.
+    let mut rng = StdRng::seed_from_u64(42);
 
-    // Players are borrowed, not consumed — same players can be reused
-    // across multiple rounds by constructing a new Board with &refs.
+    // Players are borrowed, not consumed — same player refs can be
+    // reused across multiple rounds.
     let p = CliPlayer;
-    let mut board = Board::new(state, [&p; 4]);
+    let mut board = Board::new(Wind::East, Wind::East, [&p; 4], &mut rng);
 
     println!("\n── Game Start ──");
 
-    match board.run(print_event) {
+    // board.run() takes two callbacks:
+    //   1. on_initial_deal — private per-player deal events
+    //   2. on_game_event   — public events visible to all players
+    match board.run(
+        |event| println!("  {:?}", event),   // show deal
+        |event| println!("  {:?}", event),   // show game events
+    ) {
         Ok(BoardOutput::GameConcluded(result)) => {
             match result {
                 GameResult::Hu { winner } => {
@@ -83,16 +93,19 @@ struct CliPlayer;
 impl Player for CliPlayer {
     fn decide(&self, options: &[Event]) -> Decision {
         println!();
-        pick_event(options, "option")
+        pick_event(options)
     }
 }
 
-fn pick_event(options: &[Event], noun: &str) -> Decision {
+fn pick_event(options: &[Event]) -> Decision {
     for (i, ev) in options.iter().enumerate() {
         println!("  {}. {:?}", i + 1, ev);
     }
     loop {
-        print!("Choose {noun} (1-{}, q=quit to menu): ", options.len());
+        print!(
+            "Choose option (1-{}, q=quit to menu): ",
+            options.len()
+        );
         io::stdout().flush().ok();
         let mut line = String::new();
         io::stdin().lock().read_line(&mut line).ok();
@@ -110,10 +123,6 @@ fn pick_event(options: &[Event], noun: &str) -> Decision {
 }
 
 // ── Formatting helpers ──
-
-fn print_event(e: &Event) {
-    println!("  {:?}", e);
-}
 
 fn wind_name(w: Wind) -> &'static str {
     match w {

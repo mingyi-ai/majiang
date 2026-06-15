@@ -62,21 +62,25 @@ enum Prompted {
 ///
 /// ```ignore
 /// use mahjong_core::board::*;
-/// use mahjong_core::round::{Event, State};
+/// use mahjong_core::round::Event;
 /// use mahjong_core::structs::Wind;
+/// use rand::rngs::StdRng;
+/// use rand::SeedableRng;
 ///
 /// struct Dummy;
 /// impl Player for Dummy {
-///     fn decide(&self, options: &[Event]) -> Decision {
-///         Decision::Pick(options[0])
+///     fn decide(&self, _options: &[Event]) -> Decision {
+///         Decision::Exit
 ///     }
 /// }
 ///
-/// let mut state = State::new(Wind::East, Wind::East);
-/// state.init();
 /// let p = Dummy;
-/// let mut board = Board::new(state, [&p; 4]);
-/// board.run(|_e| {})?;
+/// let mut board = Board::new(
+///     Wind::East, Wind::East,
+///     [&p; 4],
+///     &mut StdRng::seed_from_u64(42),
+/// );
+/// board.run(|_e| {}, |_e| {})?;
 /// # Ok::<_, BoardError>(())
 /// ```
 ///
@@ -88,18 +92,32 @@ pub struct Board<'a, P: Player> {
 }
 
 impl<'a, P: Player> Board<'a, P> {
-    pub fn new(state: State, players: [&'a P; 4]) -> Self {
-        Self { state, players }
+    /// Create a new board, shuffling the wall with the given RNG.
+    /// Hands start empty — tiles are dealt at the start of [`run`].
+    pub fn new<R: rand::Rng>(
+        wind: Wind,
+        turn: Wind,
+        players: [&'a P; 4],
+        rng: &mut R,
+    ) -> Self {
+        Self {
+            state: State::new_shuffled(wind, turn, rng),
+            players,
+        }
     }
 
+    /// Access the underlying round state (e.g. for inspection during
+    /// snapshot or replay).
     pub fn state(&self) -> &State {
         &self.state
     }
 
+    /// Consume the board and return the underlying round state.
     pub fn into_state(self) -> State {
         self.state
     }
 
+    /// Access a player by seat.
     pub fn player(&self, seat: Wind) -> &P {
         self.players[seat as usize]
     }
@@ -212,16 +230,29 @@ impl<'a, P: Player> Board<'a, P> {
 
     /// Run the game loop until the round ends or a player exits.
     ///
-    /// `on_event` is called for every committed event (draws, discards,
-    /// reactions, turn advances). The game result is returned via
-    /// [`BoardOutput`].
+    /// 1. **Deal phase**: the initial 13 tiles are dealt to each seat.
+    ///    Each deal event (DrawTile with flower replacement) is forwarded
+    ///    to `on_initial_deal`. In a real UI, each player would see only
+    ///    their own deal events (private).
+    ///
+    /// 2. **Game loop**: `on_event` is called for every committed event
+    ///    (draws, discards, reactions, turn advances) — the public stream
+    ///    visible to all players.
     ///
     /// Returns `Err` only on invalid player input — the caller typically
     /// unwraps, since the UI layer should guard against invalid choices.
     pub fn run(
         &mut self,
+        mut on_initial_deal: impl FnMut(&Event),
         mut on_event: impl FnMut(&Event),
     ) -> Result<BoardOutput, BoardError> {
+        // Deal initial tiles. Events go to the deal callback so the UI
+        // can handle them privately per-player (e.g. show each seat
+        // only their own tiles).
+        for event in self.state.deal() {
+            on_initial_deal(&event);
+        }
+
         loop {
             match self.step(|e| on_event(e))? {
                 StepResult::Waiting { output } => {
