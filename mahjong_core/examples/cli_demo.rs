@@ -3,8 +3,8 @@ use std::io::{self, BufRead, Write};
 use mahjong_core::board::{Board, BoardOutput, Decision, GameResult, Player};
 use mahjong_core::round::PlayerAction;
 use mahjong_core::structs::Wind;
-use rand::rngs::StdRng;
 use rand::SeedableRng;
+use rand::rngs::StdRng;
 
 // ── Main ──
 

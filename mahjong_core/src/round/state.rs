@@ -38,14 +38,42 @@ pub struct State {
 /// returned by `Player::decide()`. Every variant has a clear actor.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PlayerAction {
-    Skip { seat: Wind },
-    ConcealedKong { seat: Wind, tile: Tile },
-    AddedKong { seat: Wind, tile: Tile },
-    Chow { seat: Wind, tile: Tile, from: Wind, start: Tile },
-    Pong { seat: Wind, from: Wind, tile: Tile },
-    Kong { seat: Wind, from: Wind, tile: Tile },
-    Hu { seat: Wind, from: Wind, tile: Tile },
-    Discard { seat: Wind, tile: Tile },
+    Skip {
+        seat: Wind,
+    },
+    ConcealedKong {
+        seat: Wind,
+        tile: Tile,
+    },
+    AddedKong {
+        seat: Wind,
+        tile: Tile,
+    },
+    Chow {
+        seat: Wind,
+        tile: Tile,
+        from: Wind,
+        start: Tile,
+    },
+    Pong {
+        seat: Wind,
+        from: Wind,
+        tile: Tile,
+    },
+    Kong {
+        seat: Wind,
+        from: Wind,
+        tile: Tile,
+    },
+    Hu {
+        seat: Wind,
+        from: Wind,
+        tile: Tile,
+    },
+    Discard {
+        seat: Wind,
+        tile: Tile,
+    },
 }
 
 impl PlayerAction {
@@ -99,7 +127,10 @@ impl State {
 
     /// Returns the self-actions available for the current turn player
     /// given the tile just drawn.
-    pub(crate) fn self_action_options(&self, drawn_tile: Tile) -> Vec<PlayerAction> {
+    pub(crate) fn self_action_options(
+        &self,
+        drawn_tile: Tile,
+    ) -> Vec<PlayerAction> {
         let hand = &self.seats[self.turn as usize].hand;
         let mut actions: Vec<PlayerAction> = Vec::new();
 
@@ -206,7 +237,9 @@ impl State {
                 self.seats[seat as usize].hand.kong(tile, false);
                 (seat, Phase::RequestDrawTile)
             }
-            Some(PlayerAction::Hu { seat, .. }) => (seat, Phase::RequestDrawTile),
+            Some(PlayerAction::Hu { seat, .. }) => {
+                (seat, Phase::RequestDrawTile)
+            }
             None => {
                 // All players skipped; place discard in river and advance turn
                 self.seats[self.turn as usize].push_discard(discard);
@@ -230,7 +263,11 @@ impl State {
     }
 
     /// Compute possible reactions for a single seat given a discard tile.
-    fn reaction_options_by_seat(&self, seat: Wind, tile: Tile) -> Vec<PlayerAction> {
+    fn reaction_options_by_seat(
+        &self,
+        seat: Wind,
+        tile: Tile,
+    ) -> Vec<PlayerAction> {
         let hand = &self.seats[seat as usize].hand;
         let mut actions: Vec<PlayerAction> = Vec::new();
 
@@ -282,7 +319,10 @@ impl State {
     /// Priority: Hu(4) > Kong(3) > Pong(2) > Chow(1).
     /// Tiebreaker: closest seat clockwise from the discarder wins.
     /// Returns `None` if all players skipped (or choices is empty).
-    pub(crate) fn resolve_reactions(&self, choices: &[PlayerAction]) -> Option<PlayerAction> {
+    pub(crate) fn resolve_reactions(
+        &self,
+        choices: &[PlayerAction],
+    ) -> Option<PlayerAction> {
         debug_assert!(
             {
                 let mut seen = 0u8;

@@ -141,7 +141,9 @@ impl<'a, P: Player> Board<'a, P> {
                     Decision::Exit => Prompted::Exit,
                 }
             }
-            Output::NeedReactions { options } => self.prompt_reactions(options),
+            Output::NeedReactions { options } => {
+                self.prompt_reactions(options)
+            }
             Output::NeedDrawTile => unreachable!(),
         }
     }
@@ -218,10 +220,7 @@ impl<'a, P: Player> Board<'a, P> {
                 Ok(self.state.apply(input))
             }
 
-            (
-                Output::NeedReactions { options },
-                Input::Reactions(choices),
-            ) => {
+            (Output::NeedReactions { options }, Input::Reactions(choices)) => {
                 check_reactions(choices, options, self.state.turn)?;
                 Ok(self.state.apply(input))
             }
@@ -267,12 +266,19 @@ impl<'a, P: Player> Board<'a, P> {
                         Prompted::Action(input) => input,
                         Prompted::Exit => return Ok(BoardOutput::UserExited),
                     };
-                    if let Some(event) = self.validate_and_apply(&output, input)? {
+                    if let Some(event) =
+                        self.validate_and_apply(&output, input)?
+                    {
                         on_event(&event);
-                        if matches!(&event, GameEvent::Action(PlayerAction::Hu { .. })) {
-                            return Ok(BoardOutput::GameConcluded(GameResult::Hu {
-                                winner: event.seat(),
-                            }));
+                        if matches!(
+                            &event,
+                            GameEvent::Action(PlayerAction::Hu { .. })
+                        ) {
+                            return Ok(BoardOutput::GameConcluded(
+                                GameResult::Hu {
+                                    winner: event.seat(),
+                                },
+                            ));
                         }
                     }
                 }

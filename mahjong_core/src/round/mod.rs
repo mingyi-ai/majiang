@@ -39,7 +39,11 @@ impl State {
     /// caller-provided RNG (enabling deterministic seeds for testing).
     ///
     /// Hands are empty — tiles are dealt when the board starts running.
-    pub fn new_shuffled<R: rand::Rng>(wind: Wind, turn: Wind, rng: &mut R) -> Self {
+    pub fn new_shuffled<R: rand::Rng>(
+        wind: Wind,
+        turn: Wind,
+        rng: &mut R,
+    ) -> Self {
         let mut wall = Wall::new_mcr();
         wall.shuffle(rng);
         Self {

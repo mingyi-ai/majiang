@@ -85,11 +85,7 @@ impl BitTileCounts {
 
                 // Try removing this pair and solving the rest
                 let mut temp = *self;
-                Self::remove_nibble(
-                    &mut temp.rows[row_idx],
-                    shift,
-                    2,
-                );
+                Self::remove_nibble(&mut temp.rows[row_idx], shift, 2);
                 if Self::solve_suit(&mut temp.rows[0])
                     && Self::solve_suit(&mut temp.rows[1])
                     && Self::solve_suit(&mut temp.rows[2])
