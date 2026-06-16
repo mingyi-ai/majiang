@@ -92,13 +92,11 @@ impl Hand {
     pub(crate) fn added_kong_options(&self) -> Vec<Tile> {
         let mut tiles = Vec::new();
         for meld in &self.melds {
-            if let Some(Meld::Pung(Triplet {
-                tile,
-                is_concealed: false,
-            })) = meld
-                && self.concealed.count(*tile) >= 1
-            {
-                tiles.push(*tile);
+            if let Some(Meld::Pung(t)) = meld {
+                let t = *t;
+                if !t.is_concealed() && self.concealed.count(t.tile()) >= 1 {
+                    tiles.push(t.tile());
+                }
             }
         }
         tiles
@@ -133,9 +131,10 @@ impl Hand {
     /// Creates a Chow meld from `start_tile` using the 2 tiles from the player's hand.
     /// `tile_from_discard` is the tile claimed from the discard, which should be one of the three tiles in the chow sequence.
     pub(crate) fn chow(&mut self, start: Tile, discard: Tile) {
-        self.push_meld(Meld::Chow(Sequence::new(start, false)));
+        let seq = Sequence::new(start, false);
+        self.push_meld(Meld::Chow(seq));
 
-        for tile in [start, start.next(), start.next().next()] {
+        for tile in seq.tiles() {
             if tile == discard {
                 continue; // Skip the tile that came from the discard
             }
@@ -158,7 +157,7 @@ impl Hand {
         let pong_index = self
             .melds
             .iter()
-            .position(|m| matches!(m, Some(Meld::Pung(Triplet { tile: t, .. })) if *t == tile))
+            .position(|m| matches!(m, Some(Meld::Pung(t)) if t.tile() == tile))
             .expect("No existing Pong meld found for the specified tile");
 
         // The upgraded kong is always considered exposed (concealed = false)
