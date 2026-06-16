@@ -1,27 +1,35 @@
 use crate::structs::BitTileCounts;
 
 /// Standard MCR Hu solver using DFS over suit partitions.
-impl BitTileCounts {
-    pub fn is_hu(&self) -> bool {
-        let eyes = self.possible_eyes_for_hu();
+///
+/// Designed as a standalone struct so it can be extracted into an
+/// independent crate once the interface stabilizes. The only dependency
+/// is `BitTileCounts` from the core domain types.
+pub(crate) struct HuSolver;
+
+impl HuSolver {
+    /// Returns true if the given hand (as BitTileCounts) is a valid
+    /// winning hand under MCR rules.
+    pub(crate) fn is_hu(counts: &BitTileCounts) -> bool {
+        let eyes = Self::possible_eyes_for_hu(counts);
         eyes.iter().any(|&row| row != 0)
     }
 
     /// Returns possible eye tiles for each row.
     /// A non-zero entry means a pair at that position leads to a valid
     /// decomposition of the remaining tiles.
-    fn possible_eyes_for_hu(&self) -> [u64; 4] {
+    fn possible_eyes_for_hu(counts: &BitTileCounts) -> [u64; 4] {
         let mut possible_eyes = [0u64; 4];
 
         // ── Check honors (row 3) ──
-        let honor_eye = match Self::check_honors(&self.rows[3]) {
+        let honor_eye = match Self::check_honors(&counts.rows[3]) {
             None => return possible_eyes,
             Some(e) => e,
         };
 
         // Case A: Pair is in honors → solve suits without a pair
         if honor_eye != 0 {
-            let mut temp = *self;
+            let mut temp = *counts;
             if Self::solve_suit(&mut temp.rows[0])
                 && Self::solve_suit(&mut temp.rows[1])
                 && Self::solve_suit(&mut temp.rows[2])
@@ -32,7 +40,7 @@ impl BitTileCounts {
 
         // Case B: No pair in honors → try each possible suit pair
         if honor_eye == 0 {
-            let suit_eyes = Self::check_suits_for_pair(self);
+            let suit_eyes = Self::check_suits_for_pair(counts);
             possible_eyes[0] = suit_eyes[0];
             possible_eyes[1] = suit_eyes[1];
             possible_eyes[2] = suit_eyes[2];
@@ -57,7 +65,7 @@ impl BitTileCounts {
                 if eye != 0 {
                     return None; // more than one pair
                 }
-                Self::add_to_row(&mut eye, shift);
+                BitTileCounts::add_to_row(&mut eye, shift);
             } else if nibble == 0b1111 {
                 return None; // kong not allowed in hu hand
             }
@@ -69,10 +77,10 @@ impl BitTileCounts {
     }
 
     /// Try each possible pair in the suit rows, return eye bitmasks.
-    fn check_suits_for_pair(&self) -> [u64; 4] {
+    fn check_suits_for_pair(counts: &BitTileCounts) -> [u64; 4] {
         let mut eyes = [0u64; 4];
         for row_idx in 0..3 {
-            let mut row = self.rows[row_idx];
+            let mut row = counts.rows[row_idx];
             while row != 0 {
                 let shift = row.trailing_zeros() as usize;
                 let nibble = (row >> shift) & 0xF;
@@ -84,13 +92,13 @@ impl BitTileCounts {
                 }
 
                 // Try removing this pair and solving the rest
-                let mut temp = *self;
-                Self::remove_nibble(&mut temp.rows[row_idx], shift, 2);
+                let mut temp = *counts;
+                BitTileCounts::remove_nibble(&mut temp.rows[row_idx], shift, 2);
                 if Self::solve_suit(&mut temp.rows[0])
                     && Self::solve_suit(&mut temp.rows[1])
                     && Self::solve_suit(&mut temp.rows[2])
                 {
-                    Self::add_to_row(&mut eyes[row_idx], shift);
+                    BitTileCounts::add_to_row(&mut eyes[row_idx], shift);
                 }
 
                 row &= !(0xF << shift);
@@ -130,7 +138,7 @@ impl BitTileCounts {
                 if nibble & 0b0100 != 0 {
                     // has at least 3 copies
                     let mut next = cur;
-                    Self::remove_nibble(&mut next, shift, 3);
+                    BitTileCounts::remove_nibble(&mut next, shift, 3);
                     stack[sp] = (next, 0);
                     sp += 1;
                 }
@@ -138,10 +146,10 @@ impl BitTileCounts {
                 // Try chow
                 stack[sp - 1].1 = 2;
 
-                let seqs = Self::find_sequences_for_row(cur);
+                let seqs = BitTileCounts::find_sequences_for_row(cur);
                 if (seqs >> shift) & 0xF != 0 {
                     let mut next = cur;
-                    Self::remove_sequence_from_row(&mut next, shift);
+                    BitTileCounts::remove_sequence_from_row(&mut next, shift);
                     stack[sp] = (next, 0);
                     sp += 1;
                 }
@@ -183,7 +191,7 @@ mod tests {
             (Tile::Character9, 3), // pong
             (Tile::Character5, 2), // pair
         ]);
-        assert!(hand.is_hu());
+        assert!(HuSolver::is_hu(&hand));
     }
 
     #[test]
@@ -201,7 +209,7 @@ mod tests {
             (Tile::Bamboo9, 1), // chow 789 Tiao
             (Tile::West, 2),    // pair West
         ]);
-        assert!(hand.is_hu());
+        assert!(HuSolver::is_hu(&hand));
     }
 
     #[test]
@@ -211,7 +219,7 @@ mod tests {
             (Tile::Character2, 1),
             (Tile::Character3, 1), // incomplete
         ]);
-        assert!(!hand.is_hu());
+        assert!(!HuSolver::is_hu(&hand));
     }
 
     #[test]
@@ -220,16 +228,16 @@ mod tests {
         hand.insert(Tile::East);
         hand.insert(Tile::East); // pair East
         assert_eq!(
-            BitTileCounts::check_honors(&hand.rows[3]),
-            Some(0b0001u64 << 0) // shift 0 = East
+            HuSolver::check_honors(&hand.rows[3]),
+            Some(0b0001u64 << 0)
         );
 
         hand.insert(Tile::South);
         hand.insert(Tile::South);
         hand.insert(Tile::South); // pong South
         assert_eq!(
-            BitTileCounts::check_honors(&hand.rows[3]),
-            Some(0b0001u64 << 0) // East pair still the only eye
+            HuSolver::check_honors(&hand.rows[3]),
+            Some(0b0001u64 << 0)
         );
     }
 
@@ -240,13 +248,13 @@ mod tests {
         for _ in 0..3 {
             BitTileCounts::add_to_row(&mut row, 0);
         }
-        assert!(BitTileCounts::solve_suit(&mut row));
+        assert!(HuSolver::solve_suit(&mut row));
 
         // 111 234 (pong + chow)
         BitTileCounts::add_to_row(&mut row, 12); // Char4
         BitTileCounts::add_to_row(&mut row, 16); // Char5
         BitTileCounts::add_to_row(&mut row, 20); // Char6
-        assert!(BitTileCounts::solve_suit(&mut row));
+        assert!(HuSolver::solve_suit(&mut row));
 
         // 1111 23 (kong_split: 111 + 123 with one from the kong)
         let mut row = 0u64;
@@ -255,6 +263,6 @@ mod tests {
         }
         BitTileCounts::add_to_row(&mut row, 4); // Char2
         BitTileCounts::add_to_row(&mut row, 8); // Char3
-        assert!(BitTileCounts::solve_suit(&mut row));
+        assert!(HuSolver::solve_suit(&mut row));
     }
 }
