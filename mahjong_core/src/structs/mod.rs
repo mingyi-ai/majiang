@@ -74,3 +74,71 @@ impl Wall {
         self.pointer >= WALL_SIZE
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── Wall::new_mcr ──
+
+    #[test]
+    fn new_wall_is_not_empty() {
+        let wall = Wall::new_mcr();
+        assert!(!wall.is_empty());
+    }
+
+    // ── yield_tile / is_empty ──
+
+    #[test]
+    fn yield_tile_returns_tiles_in_initial_order() {
+        let mut wall = Wall::new_mcr();
+
+        // The wall is built in Tile::iter() order:
+        // Character1 ×4, Character2 ×4, ..., Winter ×1
+        for _ in 0..4 {
+            assert_eq!(wall.yield_tile(), Some(Tile::Character1));
+        }
+        for _ in 0..4 {
+            assert_eq!(wall.yield_tile(), Some(Tile::Character2));
+        }
+        // Spot-check a middle tile
+        for _ in 0..4 {
+            assert_eq!(wall.yield_tile(), Some(Tile::Character3));
+        }
+        // After 12 tiles, wall should not be empty
+        assert!(!wall.is_empty());
+    }
+
+    #[test]
+    fn yield_tile_exhaustion_returns_none() {
+        let mut wall = Wall::new_mcr();
+
+        // Yield all tiles
+        let mut count = 0usize;
+        while let Some(_) = wall.yield_tile() {
+            count += 1;
+        }
+
+        assert_eq!(count, WALL_SIZE);
+        assert!(wall.is_empty());
+        // Subsequent calls return None
+        assert_eq!(wall.yield_tile(), None);
+        assert_eq!(wall.yield_tile(), None);
+    }
+
+    #[test]
+    fn yield_tile_after_partial_drain() {
+        let mut wall = Wall::new_mcr();
+
+        // Drain half the wall
+        for _ in 0..(WALL_SIZE / 2) {
+            assert!(wall.yield_tile().is_some());
+            assert!(!wall.is_empty());
+        }
+
+        // Drain the rest
+        while let Some(_) = wall.yield_tile() {}
+
+        assert!(wall.is_empty());
+    }
+}
