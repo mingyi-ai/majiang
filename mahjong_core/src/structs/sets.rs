@@ -12,9 +12,14 @@ impl Sequence {
         // start.next() and start.next().next() stay in the same suit).
         let v = start as u8;
         if !matches!(v, 0..=24 | 64..=88 | 128..=152) {
-            panic!("Sequence must have a valid chow start (suit tile rank 1-7)");
+            panic!(
+                "Sequence must have a valid chow start (suit tile rank 1-7)"
+            );
         }
-        Self { start, is_concealed }
+        Self {
+            start,
+            is_concealed,
+        }
     }
 
     pub fn start(&self) -> Tile {
@@ -129,30 +134,65 @@ mod tests {
 
     // Tile groups — source of truth is the enum variant name.
     const CHOW_STARTS: [Tile; 21] = [
-        Tile::Character1, Tile::Character2, Tile::Character3,
-        Tile::Character4, Tile::Character5, Tile::Character6,
+        Tile::Character1,
+        Tile::Character2,
+        Tile::Character3,
+        Tile::Character4,
+        Tile::Character5,
+        Tile::Character6,
         Tile::Character7,
-        Tile::Dot1, Tile::Dot2, Tile::Dot3,
-        Tile::Dot4, Tile::Dot5, Tile::Dot6,
+        Tile::Dot1,
+        Tile::Dot2,
+        Tile::Dot3,
+        Tile::Dot4,
+        Tile::Dot5,
+        Tile::Dot6,
         Tile::Dot7,
-        Tile::Bamboo1, Tile::Bamboo2, Tile::Bamboo3,
-        Tile::Bamboo4, Tile::Bamboo5, Tile::Bamboo6,
+        Tile::Bamboo1,
+        Tile::Bamboo2,
+        Tile::Bamboo3,
+        Tile::Bamboo4,
+        Tile::Bamboo5,
+        Tile::Bamboo6,
         Tile::Bamboo7,
     ];
     const SUIT_TILES: [Tile; 27] = [
-        Tile::Character1, Tile::Character2, Tile::Character3,
-        Tile::Character4, Tile::Character5, Tile::Character6,
-        Tile::Character7, Tile::Character8, Tile::Character9,
-        Tile::Dot1, Tile::Dot2, Tile::Dot3,
-        Tile::Dot4, Tile::Dot5, Tile::Dot6,
-        Tile::Dot7, Tile::Dot8, Tile::Dot9,
-        Tile::Bamboo1, Tile::Bamboo2, Tile::Bamboo3,
-        Tile::Bamboo4, Tile::Bamboo5, Tile::Bamboo6,
-        Tile::Bamboo7, Tile::Bamboo8, Tile::Bamboo9,
+        Tile::Character1,
+        Tile::Character2,
+        Tile::Character3,
+        Tile::Character4,
+        Tile::Character5,
+        Tile::Character6,
+        Tile::Character7,
+        Tile::Character8,
+        Tile::Character9,
+        Tile::Dot1,
+        Tile::Dot2,
+        Tile::Dot3,
+        Tile::Dot4,
+        Tile::Dot5,
+        Tile::Dot6,
+        Tile::Dot7,
+        Tile::Dot8,
+        Tile::Dot9,
+        Tile::Bamboo1,
+        Tile::Bamboo2,
+        Tile::Bamboo3,
+        Tile::Bamboo4,
+        Tile::Bamboo5,
+        Tile::Bamboo6,
+        Tile::Bamboo7,
+        Tile::Bamboo8,
+        Tile::Bamboo9,
     ];
     const HONOR_TILES: [Tile; 7] = [
-        Tile::East, Tile::South, Tile::West, Tile::North,
-        Tile::Red, Tile::Green, Tile::White,
+        Tile::East,
+        Tile::South,
+        Tile::West,
+        Tile::North,
+        Tile::Red,
+        Tile::Green,
+        Tile::White,
     ];
 
     // --- Sequence ---
@@ -173,7 +213,10 @@ mod tests {
     #[test]
     fn sequence_tiles_returns_three_consecutive_tiles() {
         let seq = Sequence::new(Tile::Character3, false);
-        assert_eq!(seq.tiles(), [Tile::Character3, Tile::Character4, Tile::Character5]);
+        assert_eq!(
+            seq.tiles(),
+            [Tile::Character3, Tile::Character4, Tile::Character5]
+        );
 
         let seq = Sequence::new(Tile::Dot5, false);
         assert_eq!(seq.tiles(), [Tile::Dot5, Tile::Dot6, Tile::Dot7]);
@@ -267,7 +310,10 @@ mod tests {
     #[test]
     fn quad_tiles_returns_four_copies() {
         let q = Quad::new(Tile::White, false);
-        assert_eq!(q.tiles(), [Tile::White, Tile::White, Tile::White, Tile::White]);
+        assert_eq!(
+            q.tiles(),
+            [Tile::White, Tile::White, Tile::White, Tile::White]
+        );
     }
 
     #[test]
@@ -311,7 +357,10 @@ mod tests {
     #[test]
     fn meld_tiles_for_chow() {
         let m = Meld::Chow(Sequence::new(Tile::Character3, true));
-        assert_eq!(m.tiles(), vec![Tile::Character3, Tile::Character4, Tile::Character5]);
+        assert_eq!(
+            m.tiles(),
+            vec![Tile::Character3, Tile::Character4, Tile::Character5]
+        );
     }
 
     #[test]
@@ -323,6 +372,9 @@ mod tests {
     #[test]
     fn meld_tiles_for_kong() {
         let m = Meld::Kong(Quad::new(Tile::Red, true));
-        assert_eq!(m.tiles(), vec![Tile::Red, Tile::Red, Tile::Red, Tile::Red]);
+        assert_eq!(
+            m.tiles(),
+            vec![Tile::Red, Tile::Red, Tile::Red, Tile::Red]
+        );
     }
 }

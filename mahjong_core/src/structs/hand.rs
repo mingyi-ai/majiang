@@ -123,19 +123,42 @@ mod tests {
 
     // Reuse tile groupings from the domain — source of truth is the variant name.
     const SUIT_TILES: [Tile; 27] = [
-        Tile::Character1, Tile::Character2, Tile::Character3,
-        Tile::Character4, Tile::Character5, Tile::Character6,
-        Tile::Character7, Tile::Character8, Tile::Character9,
-        Tile::Dot1, Tile::Dot2, Tile::Dot3,
-        Tile::Dot4, Tile::Dot5, Tile::Dot6,
-        Tile::Dot7, Tile::Dot8, Tile::Dot9,
-        Tile::Bamboo1, Tile::Bamboo2, Tile::Bamboo3,
-        Tile::Bamboo4, Tile::Bamboo5, Tile::Bamboo6,
-        Tile::Bamboo7, Tile::Bamboo8, Tile::Bamboo9,
+        Tile::Character1,
+        Tile::Character2,
+        Tile::Character3,
+        Tile::Character4,
+        Tile::Character5,
+        Tile::Character6,
+        Tile::Character7,
+        Tile::Character8,
+        Tile::Character9,
+        Tile::Dot1,
+        Tile::Dot2,
+        Tile::Dot3,
+        Tile::Dot4,
+        Tile::Dot5,
+        Tile::Dot6,
+        Tile::Dot7,
+        Tile::Dot8,
+        Tile::Dot9,
+        Tile::Bamboo1,
+        Tile::Bamboo2,
+        Tile::Bamboo3,
+        Tile::Bamboo4,
+        Tile::Bamboo5,
+        Tile::Bamboo6,
+        Tile::Bamboo7,
+        Tile::Bamboo8,
+        Tile::Bamboo9,
     ];
     const HONOR_TILES: [Tile; 7] = [
-        Tile::East, Tile::South, Tile::West, Tile::North,
-        Tile::Red, Tile::Green, Tile::White,
+        Tile::East,
+        Tile::South,
+        Tile::West,
+        Tile::North,
+        Tile::Red,
+        Tile::Green,
+        Tile::White,
     ];
 
     // ── tile_to_position / position_to_tile ──
@@ -319,7 +342,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Cannot remove more tiles than currently present")]
+    #[should_panic(
+        expected = "Cannot remove more tiles than currently present"
+    )]
     fn remove_panics_on_underflow() {
         let mut b = BitTileCounts::default();
         b.insert(Tile::Red);
@@ -327,7 +352,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Cannot remove more tiles than currently present")]
+    #[should_panic(
+        expected = "Cannot remove more tiles than currently present"
+    )]
     fn remove_panics_from_empty() {
         let mut b = BitTileCounts::default();
         b.remove(Tile::Green, 1); // 0 present
@@ -384,23 +411,28 @@ mod tests {
     fn find_sequences_adjacent_triple() {
         // Three consecutive tiles each count >= 1
         let mut row: u64 = 0;
-        BitTileCounts::add_to_row(&mut row, 0);  // Character1
-        BitTileCounts::add_to_row(&mut row, 4);  // Character2
-        BitTileCounts::add_to_row(&mut row, 8);  // Character3
+        BitTileCounts::add_to_row(&mut row, 0); // Character1
+        BitTileCounts::add_to_row(&mut row, 4); // Character2
+        BitTileCounts::add_to_row(&mut row, 8); // Character3
 
         let seqs = BitTileCounts::find_sequences_for_row(row);
         // Bit 0 should be set (sequence starting at Character1)
         assert_ne!(seqs & (1 << 0), 0, "expected sequence at shift 0");
         // No other sequence bits should be set
-        assert_eq!(seqs & !(1 << 0), 0, "unexpected sequence bits: {:#b}", seqs);
+        assert_eq!(
+            seqs & !(1 << 0),
+            0,
+            "unexpected sequence bits: {:#b}",
+            seqs
+        );
     }
 
     #[test]
     fn find_sequences_no_full_triple() {
         // Only two consecutive tiles — no sequence
         let mut row: u64 = 0;
-        BitTileCounts::add_to_row(&mut row, 0);  // Character1
-        BitTileCounts::add_to_row(&mut row, 4);  // Character2
+        BitTileCounts::add_to_row(&mut row, 0); // Character1
+        BitTileCounts::add_to_row(&mut row, 4); // Character2
         // Missing Character3
 
         let seqs = BitTileCounts::find_sequences_for_row(row);
@@ -411,11 +443,11 @@ mod tests {
     fn find_sequences_multiple_overlapping() {
         // Tiles at positions 0,4,8 and 4,8,12 and 8,12,16
         let mut row: u64 = 0;
-        BitTileCounts::add_to_row(&mut row, 0);   // 1
-        BitTileCounts::add_to_row(&mut row, 4);   // 2
-        BitTileCounts::add_to_row(&mut row, 8);   // 3
-        BitTileCounts::add_to_row(&mut row, 12);  // 4
-        BitTileCounts::add_to_row(&mut row, 16);  // 5
+        BitTileCounts::add_to_row(&mut row, 0); // 1
+        BitTileCounts::add_to_row(&mut row, 4); // 2
+        BitTileCounts::add_to_row(&mut row, 8); // 3
+        BitTileCounts::add_to_row(&mut row, 12); // 4
+        BitTileCounts::add_to_row(&mut row, 16); // 5
 
         let seqs = BitTileCounts::find_sequences_for_row(row);
         // Bit 0: 1-2-3 ✓
@@ -432,13 +464,17 @@ mod tests {
     fn find_sequences_count_two_qualifies() {
         // Having count 2 at a position should still register as >= 1
         let mut row: u64 = 0;
-        BitTileCounts::add_to_row(&mut row, 0);  // Character1
-        BitTileCounts::add_to_row(&mut row, 0);  // Character1 again
-        BitTileCounts::add_to_row(&mut row, 4);  // Character2
-        BitTileCounts::add_to_row(&mut row, 8);  // Character3
+        BitTileCounts::add_to_row(&mut row, 0); // Character1
+        BitTileCounts::add_to_row(&mut row, 0); // Character1 again
+        BitTileCounts::add_to_row(&mut row, 4); // Character2
+        BitTileCounts::add_to_row(&mut row, 8); // Character3
 
         let seqs = BitTileCounts::find_sequences_for_row(row);
-        assert_ne!(seqs & (1 << 0), 0, "count 2 should still register as present");
+        assert_ne!(
+            seqs & (1 << 0),
+            0,
+            "count 2 should still register as present"
+        );
     }
 
     // ── remove_sequence_from_row ──
@@ -446,9 +482,9 @@ mod tests {
     #[test]
     fn remove_sequence_removes_one_from_each() {
         let mut row: u64 = 0;
-        BitTileCounts::add_to_row(&mut row, 0);  // count 1
-        BitTileCounts::add_to_row(&mut row, 4);  // count 1
-        BitTileCounts::add_to_row(&mut row, 8);  // count 1
+        BitTileCounts::add_to_row(&mut row, 0); // count 1
+        BitTileCounts::add_to_row(&mut row, 4); // count 1
+        BitTileCounts::add_to_row(&mut row, 8); // count 1
 
         BitTileCounts::remove_sequence_from_row(&mut row, 0);
 
@@ -470,9 +506,21 @@ mod tests {
 
         BitTileCounts::remove_sequence_from_row(&mut row, 0);
 
-        assert_eq!(((row >> 0) & TILE_COUNT_MASK).count_ones(), 1, "Ch1 should have 1 remaining");
-        assert_eq!(((row >> 4) & TILE_COUNT_MASK).count_ones(), 0, "Ch2 should have 0 remaining");
-        assert_eq!(((row >> 8) & TILE_COUNT_MASK).count_ones(), 2, "Ch3 should have 2 remaining");
+        assert_eq!(
+            ((row >> 0) & TILE_COUNT_MASK).count_ones(),
+            1,
+            "Ch1 should have 1 remaining"
+        );
+        assert_eq!(
+            ((row >> 4) & TILE_COUNT_MASK).count_ones(),
+            0,
+            "Ch2 should have 0 remaining"
+        );
+        assert_eq!(
+            ((row >> 8) & TILE_COUNT_MASK).count_ones(),
+            2,
+            "Ch3 should have 2 remaining"
+        );
     }
 
     // ── LSB-fill encoding invariants ──
@@ -538,4 +586,3 @@ mod tests {
         assert!(h.melds.iter().all(|m| m.is_none()));
     }
 }
-

@@ -24,7 +24,7 @@ impl TileType {
 }
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// Mahjong tiles represented with sparse patterns
 /// optimized for bitwise operations.
 pub enum Tile {
@@ -194,30 +194,50 @@ mod tests {
 
     // Tile groups by type — source of truth is the enum variant name.
     const CHARACTERS: [Tile; 9] = [
-        Tile::Character1, Tile::Character2, Tile::Character3,
-        Tile::Character4, Tile::Character5, Tile::Character6,
-        Tile::Character7, Tile::Character8, Tile::Character9,
+        Tile::Character1,
+        Tile::Character2,
+        Tile::Character3,
+        Tile::Character4,
+        Tile::Character5,
+        Tile::Character6,
+        Tile::Character7,
+        Tile::Character8,
+        Tile::Character9,
     ];
     const DOTS: [Tile; 9] = [
-        Tile::Dot1, Tile::Dot2, Tile::Dot3,
-        Tile::Dot4, Tile::Dot5, Tile::Dot6,
-        Tile::Dot7, Tile::Dot8, Tile::Dot9,
+        Tile::Dot1,
+        Tile::Dot2,
+        Tile::Dot3,
+        Tile::Dot4,
+        Tile::Dot5,
+        Tile::Dot6,
+        Tile::Dot7,
+        Tile::Dot8,
+        Tile::Dot9,
     ];
     const BAMBOOS: [Tile; 9] = [
-        Tile::Bamboo1, Tile::Bamboo2, Tile::Bamboo3,
-        Tile::Bamboo4, Tile::Bamboo5, Tile::Bamboo6,
-        Tile::Bamboo7, Tile::Bamboo8, Tile::Bamboo9,
+        Tile::Bamboo1,
+        Tile::Bamboo2,
+        Tile::Bamboo3,
+        Tile::Bamboo4,
+        Tile::Bamboo5,
+        Tile::Bamboo6,
+        Tile::Bamboo7,
+        Tile::Bamboo8,
+        Tile::Bamboo9,
     ];
-    const WINDS: [Tile; 4] = [
-        Tile::East, Tile::South, Tile::West, Tile::North,
-    ];
-    const DRAGONS: [Tile; 3] = [
-        Tile::Red, Tile::Green, Tile::White,
-    ];
+    const WINDS: [Tile; 4] =
+        [Tile::East, Tile::South, Tile::West, Tile::North];
+    const DRAGONS: [Tile; 3] = [Tile::Red, Tile::Green, Tile::White];
     const FLOWERS: [Tile; 8] = [
-        Tile::Plum, Tile::Orchid, Tile::BambooF,
-        Tile::Chrysanthemum, Tile::Spring, Tile::Summer,
-        Tile::Autumn, Tile::Winter,
+        Tile::Plum,
+        Tile::Orchid,
+        Tile::BambooF,
+        Tile::Chrysanthemum,
+        Tile::Spring,
+        Tile::Summer,
+        Tile::Autumn,
+        Tile::Winter,
     ];
 
     // --- TileType method tests ---
@@ -294,7 +314,13 @@ mod tests {
     fn from_repr_round_trips_all_variants() {
         for tile in Tile::ALL {
             let raw = tile as u8;
-            assert_eq!(tile, Tile::from_repr(raw), "from_repr({}) should produce {:?}", raw, tile);
+            assert_eq!(
+                tile,
+                Tile::from_repr(raw),
+                "from_repr({}) should produce {:?}",
+                raw,
+                tile
+            );
         }
     }
 
@@ -348,7 +374,12 @@ mod tests {
     fn next_character_tiles() {
         // Character1 through Character8 each have a next; Character9 is the last.
         for i in 0..8 {
-            assert_eq!(CHARACTERS[i].next(), CHARACTERS[i + 1], "{:?}.next()", CHARACTERS[i]);
+            assert_eq!(
+                CHARACTERS[i].next(),
+                CHARACTERS[i + 1],
+                "{:?}.next()",
+                CHARACTERS[i]
+            );
         }
     }
 
@@ -362,7 +393,12 @@ mod tests {
     #[test]
     fn next_bamboo_tiles() {
         for i in 0..8 {
-            assert_eq!(BAMBOOS[i].next(), BAMBOOS[i + 1], "{:?}.next()", BAMBOOS[i]);
+            assert_eq!(
+                BAMBOOS[i].next(),
+                BAMBOOS[i + 1],
+                "{:?}.next()",
+                BAMBOOS[i]
+            );
         }
     }
 
@@ -378,7 +414,12 @@ mod tests {
     fn next_dragon_tiles() {
         // Red, Green advance; White is the last.
         for i in 0..2 {
-            assert_eq!(DRAGONS[i].next(), DRAGONS[i + 1], "{:?}.next()", DRAGONS[i]);
+            assert_eq!(
+                DRAGONS[i].next(),
+                DRAGONS[i + 1],
+                "{:?}.next()",
+                DRAGONS[i]
+            );
         }
     }
 
@@ -386,7 +427,12 @@ mod tests {
     fn next_flower_tiles() {
         // Plum through Autumn advance; Winter is the last.
         for i in 0..7 {
-            assert_eq!(FLOWERS[i].next(), FLOWERS[i + 1], "{:?}.next()", FLOWERS[i]);
+            assert_eq!(
+                FLOWERS[i].next(),
+                FLOWERS[i + 1],
+                "{:?}.next()",
+                FLOWERS[i]
+            );
         }
     }
 
@@ -395,21 +441,36 @@ mod tests {
     #[test]
     fn tile_is_suit_delegates_to_type() {
         for tile in Tile::ALL {
-            assert_eq!(tile.is_suit(), tile.get_type().is_suit(), "{:?}", tile);
+            assert_eq!(
+                tile.is_suit(),
+                tile.get_type().is_suit(),
+                "{:?}",
+                tile
+            );
         }
     }
 
     #[test]
     fn tile_is_honor_delegates_to_type() {
         for tile in Tile::ALL {
-            assert_eq!(tile.is_honor(), tile.get_type().is_honor(), "{:?}", tile);
+            assert_eq!(
+                tile.is_honor(),
+                tile.get_type().is_honor(),
+                "{:?}",
+                tile
+            );
         }
     }
 
     #[test]
     fn tile_is_flower_delegates_to_type() {
         for tile in Tile::ALL {
-            assert_eq!(tile.is_flower(), tile.get_type().is_flower(), "{:?}", tile);
+            assert_eq!(
+                tile.is_flower(),
+                tile.get_type().is_flower(),
+                "{:?}",
+                tile
+            );
         }
     }
 
