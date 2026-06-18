@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use crate::round::{GameEvent, Input, Output, PlayerAction, State};
 use crate::structs::Wind;
 
-/// What a player decided to do given their available options.
+/// What a player chose to do — either pick an action or exit the game.
 #[derive(Debug, Clone, Copy)]
-pub enum Decision {
+pub enum PlayerDecision {
     /// Pick one of the available actions.
     Pick(PlayerAction),
     /// Exit the game (e.g. user quit to menu).
@@ -14,12 +14,12 @@ pub enum Decision {
 
 /// Injected per-seat decision maker.
 pub trait Player {
-    fn decide(&self, options: &[PlayerAction]) -> Decision;
+    fn decide(&self, options: &[PlayerAction]) -> PlayerDecision;
 }
 
 // ── Public types ──
 
-/// Result of `Board::step()`.
+/// Result of [`Engine::step()`].
 #[derive(Debug, Clone)]
 enum StepResult {
     Waiting { output: Output },
@@ -27,7 +27,7 @@ enum StepResult {
 }
 
 #[derive(Debug, Clone)]
-pub enum BoardError {
+pub enum EngineError {
     InvalidInput(String),
 }
 
@@ -38,9 +38,9 @@ pub enum GameResult {
     Draw,
 }
 
-/// What `Board::run()` returns after the game loop finishes.
+/// What [`Engine::run()`] returns after the game loop finishes.
 #[derive(Debug, Clone, Copy)]
-pub enum BoardOutput {
+pub enum EngineOutput {
     /// The game concluded normally (Hu or draw).
     GameConcluded(GameResult),
     /// A player exited mid-game (e.g. user quit to menu).
@@ -54,45 +54,43 @@ enum Prompted {
     Exit,
 }
 
-// ── Board ──
+// ── Engine ──
 
 /// Game driver wrapping the round state machine.
 ///
 /// # Usage
 ///
 /// ```ignore
-/// use mahjong_core::board::*;
-/// use mahjong_core::round::PlayerAction;
-/// use mahjong_core::structs::Wind;
+/// use mahjong_core::{Engine, EngineError, PlayerDecision, Player, PlayerAction, Wind};
 /// use rand::rngs::StdRng;
 /// use rand::SeedableRng;
 ///
 /// struct Dummy;
 /// impl Player for Dummy {
-///     fn decide(&self, _options: &[PlayerAction]) -> Decision {
-///         Decision::Exit
+///     fn decide(&self, _options: &[PlayerAction]) -> PlayerDecision {
+///         PlayerDecision::Exit
 ///     }
 /// }
 ///
 /// let p = Dummy;
-/// let mut board = Board::new(
+/// let mut engine = Engine::new(
 ///     Wind::East, Wind::East,
 ///     [&p; 4],
 ///     &mut StdRng::seed_from_u64(42),
 /// );
-/// board.run(|_e| {}, |_e| {})?;
-/// # Ok::<_, BoardError>(())
+/// engine.run(|_e| {}, |_e| {})?;
+/// # Ok::<_, EngineError>(())
 /// ```
 ///
 /// Players are borrowed, not owned — the same player can be reused
 /// across multiple rounds.
-pub struct Board<'a, P: Player> {
+pub struct Engine<'a, P: Player> {
     state: State,
     players: [&'a P; 4],
 }
 
-impl<'a, P: Player> Board<'a, P> {
-    /// Create a new board, shuffling the wall with the given RNG.
+impl<'a, P: Player> Engine<'a, P> {
+    /// Create a new engine, shuffling the wall with the given RNG.
     /// Hands start empty — tiles are dealt at the start of [`run`].
     pub fn new<R: rand::Rng>(
         wind: Wind,
@@ -112,7 +110,7 @@ impl<'a, P: Player> Board<'a, P> {
         &self.state
     }
 
-    /// Consume the board and return the underlying round state.
+    /// Consume the engine and return the underlying round state.
     pub fn into_state(self) -> State {
         self.state
     }
@@ -122,23 +120,23 @@ impl<'a, P: Player> Board<'a, P> {
         self.players[seat as usize]
     }
 
-    /// Collect decisions from all relevant players and wrap into `Input`.
+    /// Collect plays from all relevant players and wrap into `Input`.
     fn prompt(&self, output: &Output) -> Prompted {
         match output {
             Output::NeedSelfAction { options } => {
                 match self.players[self.state.turn as usize].decide(options) {
-                    Decision::Pick(action) => {
+                    PlayerDecision::Pick(action) => {
                         Prompted::Action(Input::SelfAction(action))
                     }
-                    Decision::Exit => Prompted::Exit,
+                    PlayerDecision::Exit => Prompted::Exit,
                 }
             }
             Output::NeedDiscard { options } => {
                 match self.players[self.state.turn as usize].decide(options) {
-                    Decision::Pick(action) => {
+                    PlayerDecision::Pick(action) => {
                         Prompted::Action(Input::Discard(action))
                     }
-                    Decision::Exit => Prompted::Exit,
+                    PlayerDecision::Exit => Prompted::Exit,
                 }
             }
             Output::NeedReactions { options } => {
@@ -157,8 +155,8 @@ impl<'a, P: Player> Board<'a, P> {
         let mut choices = Vec::new();
         for (seat, seat_options) in by_seat {
             match self.players[seat as usize].decide(&seat_options) {
-                Decision::Pick(action) => choices.push(action),
-                Decision::Exit => return Prompted::Exit,
+                PlayerDecision::Pick(action) => choices.push(action),
+                PlayerDecision::Exit => return Prompted::Exit,
             }
         }
         Prompted::Action(Input::Reactions(choices))
@@ -169,7 +167,7 @@ impl<'a, P: Player> Board<'a, P> {
     fn step(
         &mut self,
         mut on_event: impl FnMut(&GameEvent),
-    ) -> Result<StepResult, BoardError> {
+    ) -> Result<StepResult, EngineError> {
         loop {
             let output = self.state.query();
             match output {
@@ -200,17 +198,14 @@ impl<'a, P: Player> Board<'a, P> {
         }
     }
 
-    /// Validate and apply a player's decision.
+    /// Validate and apply a player's play.
     fn validate_and_apply(
         &mut self,
         expected: &Output,
         input: Input,
-    ) -> Result<Option<GameEvent>, BoardError> {
+    ) -> Result<Option<GameEvent>, EngineError> {
         match (expected, &input) {
-            (
-                Output::NeedSelfAction { options },
-                Input::SelfAction(action),
-            ) => {
+            (Output::NeedSelfAction { options }, Input::SelfAction(action)) => {
                 check_in_options(action, options, "self-action")?;
                 Ok(self.state.apply(input))
             }
@@ -225,7 +220,7 @@ impl<'a, P: Player> Board<'a, P> {
                 Ok(self.state.apply(input))
             }
 
-            _ => Err(BoardError::InvalidInput(format!(
+            _ => Err(EngineError::InvalidInput(format!(
                 "input {:?} doesn't match expected {:?}",
                 input, expected
             ))),
@@ -252,7 +247,7 @@ impl<'a, P: Player> Board<'a, P> {
         &mut self,
         mut on_initial_deal: impl FnMut(&GameEvent),
         mut on_event: impl FnMut(&GameEvent),
-    ) -> Result<BoardOutput, BoardError> {
+    ) -> Result<EngineOutput, EngineError> {
         // Deal initial tiles. Events go to the deal callback so the UI
         // can handle them privately per-player.
         for event in self.state.deal() {
@@ -264,26 +259,19 @@ impl<'a, P: Player> Board<'a, P> {
                 StepResult::Waiting { output } => {
                     let input = match self.prompt(&output) {
                         Prompted::Action(input) => input,
-                        Prompted::Exit => return Ok(BoardOutput::UserExited),
+                        Prompted::Exit => return Ok(EngineOutput::UserExited),
                     };
-                    if let Some(event) =
-                        self.validate_and_apply(&output, input)?
-                    {
+                    if let Some(event) = self.validate_and_apply(&output, input)? {
                         on_event(&event);
-                        if matches!(
-                            &event,
-                            GameEvent::Action(PlayerAction::Hu { .. })
-                        ) {
-                            return Ok(BoardOutput::GameConcluded(
-                                GameResult::Hu {
-                                    winner: event.seat(),
-                                },
+                        if matches!(&event, GameEvent::Action(PlayerAction::Hu { .. })) {
+                            return Ok(EngineOutput::GameConcluded(
+                                GameResult::Hu { winner: event.seat() },
                             ));
                         }
                     }
                 }
                 StepResult::Over => {
-                    return Ok(BoardOutput::GameConcluded(GameResult::Draw));
+                    return Ok(EngineOutput::GameConcluded(GameResult::Draw));
                 }
             }
         }
@@ -297,11 +285,11 @@ fn check_in_options(
     action: &PlayerAction,
     options: &[PlayerAction],
     ctx: &str,
-) -> Result<(), BoardError> {
+) -> Result<(), EngineError> {
     if options.contains(action) {
         Ok(())
     } else {
-        Err(BoardError::InvalidInput(format!(
+        Err(EngineError::InvalidInput(format!(
             "{} {:?} not in options",
             ctx, action
         )))
@@ -313,19 +301,19 @@ fn check_reactions(
     choices: &[PlayerAction],
     options: &[PlayerAction],
     turn: Wind,
-) -> Result<(), BoardError> {
+) -> Result<(), EngineError> {
     let mut seen = 0u8;
     for choice in choices {
         let seat = choice.seat();
         if seat == turn {
-            return Err(BoardError::InvalidInput(format!(
+            return Err(EngineError::InvalidInput(format!(
                 "reaction from current turn seat {:?}",
                 seat
             )));
         }
         let bit = 1u8 << (seat as u8);
         if seen & bit != 0 {
-            return Err(BoardError::InvalidInput(format!(
+            return Err(EngineError::InvalidInput(format!(
                 "duplicate reaction from seat {:?}",
                 seat
             )));
