@@ -158,7 +158,17 @@ impl State {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::structs::Tile;
+    use crate::structs::{Hand, Tile};
+
+    // ── Helpers ──
+
+    fn hand_with(tiles: &[Tile]) -> Hand {
+        let mut h = Hand::default();
+        for &t in tiles {
+            h.concealed.insert(t);
+        }
+        h
+    }
 
     #[test]
     fn test_deal_exact_count_unshuffled() {
@@ -298,5 +308,210 @@ mod tests {
             matches!(e, GameEvent::DrawTile { tile, .. } if tile.is_flower())
         }).count();
         assert_eq!(events.len(), 52 + flower_count);
+    }
+
+    // ── query ──
+
+    #[test]
+    fn query_need_draw_tile() {
+        let state = State::new(Wind::East, Wind::East);
+        assert!(matches!(state.query(), Output::NeedDrawTile));
+    }
+
+    #[test]
+    fn query_need_self_action() {
+        let mut state = State::new(Wind::East, Wind::East);
+        state.phase = Phase::RequestSelfAction(Tile::Character1);
+        match state.query() {
+            Output::NeedSelfAction { options } => {
+                assert!(options.is_empty()); // empty hand → no options
+            }
+            other => panic!("expected NeedSelfAction, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn query_need_discard() {
+        let mut state = State::new(Wind::East, Wind::East);
+        state.seats[0].hand = hand_with(&[Tile::Dot3]);
+        state.phase = Phase::RequestDiscard;
+        match state.query() {
+            Output::NeedDiscard { options } => {
+                assert!(options.iter().any(|a| matches!(
+                    a,
+                    PlayerAction::Discard {
+                        tile: Tile::Dot3,
+                        ..
+                    }
+                )));
+            }
+            other => panic!("expected NeedDiscard, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn query_need_reactions() {
+        let mut state = State::new(Wind::East, Wind::East);
+        state.seats[1].hand = hand_with(&[Tile::Bamboo5, Tile::Bamboo5]);
+        state.phase = Phase::RequestReaction(Tile::Bamboo5);
+        match state.query() {
+            Output::NeedReactions { options } => {
+                assert!(
+                    options
+                        .iter()
+                        .any(|a| matches!(a, PlayerAction::Pong { .. }))
+                );
+            }
+            other => panic!("expected NeedReactions, got {:?}", other),
+        }
+    }
+
+    // ── apply: phase transitions ──
+
+    #[test]
+    fn apply_draw_tile_non_flower() {
+        let mut state = State::new(Wind::East, Wind::East);
+        let event = state.apply(Input::DrawTile);
+        // Should yield a DrawTile event
+        assert!(matches!(
+            event,
+            Some(GameEvent::DrawTile {
+                seat: Wind::East,
+                tile: Tile::Character1
+            })
+        ));
+        // Phase transitions to RequestSelfAction for non-flower tiles
+        assert_eq!(state.phase, Phase::RequestSelfAction(Tile::Character1));
+    }
+
+    #[test]
+    fn apply_draw_tile_flower_stays_in_draw_phase() {
+        let mut state = State::new(Wind::East, Wind::East);
+        // Replace the first wall tile with a flower
+        state.wall.set_tile(0, Tile::Plum);
+        let event = state.apply(Input::DrawTile);
+        assert!(matches!(
+            event,
+            Some(GameEvent::DrawTile {
+                seat: Wind::East,
+                tile: Tile::Plum
+            })
+        ));
+        // Phase stays RequestDrawTile so the caller draws a replacement
+        assert_eq!(state.phase, Phase::RequestDrawTile);
+    }
+
+    #[test]
+    fn apply_skip_returns_none_and_transitions_to_discard() {
+        let mut state = State::new(Wind::East, Wind::East);
+        state.phase = Phase::RequestSelfAction(Tile::Character1);
+        let event = state
+            .apply(Input::SelfAction(PlayerAction::Skip { seat: Wind::East }));
+        // Skip yields no event (internal mechanic)
+        assert!(event.is_none());
+        assert_eq!(state.phase, Phase::RequestDiscard);
+    }
+
+    #[test]
+    fn apply_concealed_kong_emits_action_and_returns_to_draw() {
+        let mut state = State::new(Wind::East, Wind::East);
+        state.seats[0].hand =
+            hand_with(&[Tile::Red, Tile::Red, Tile::Red, Tile::Red]);
+        state.phase = Phase::RequestSelfAction(Tile::Red);
+        let event =
+            state.apply(Input::SelfAction(PlayerAction::ConcealedKong {
+                seat: Wind::East,
+                tile: Tile::Red,
+            }));
+        assert!(matches!(
+            event,
+            Some(GameEvent::Action(PlayerAction::ConcealedKong { .. }))
+        ));
+        assert_eq!(state.phase, Phase::RequestDrawTile);
+    }
+
+    #[test]
+    fn apply_discard_emits_action_and_transitions_to_reaction() {
+        let mut state = State::new(Wind::East, Wind::East);
+        state.seats[0].hand = hand_with(&[Tile::Dot3]);
+        state.phase = Phase::RequestDiscard;
+        let event = state.apply(Input::Discard(PlayerAction::Discard {
+            seat: Wind::East,
+            tile: Tile::Dot3,
+        }));
+        assert!(matches!(
+            event,
+            Some(GameEvent::Action(PlayerAction::Discard { .. }))
+        ));
+        assert_eq!(state.phase, Phase::RequestReaction(Tile::Dot3));
+    }
+
+    #[test]
+    fn apply_reaction_pong_emits_action_and_gives_turn_to_responder() {
+        let mut state = State::new(Wind::East, Wind::East);
+        state.seats[1].hand = hand_with(&[Tile::Bamboo5, Tile::Bamboo5]);
+        state.phase = Phase::RequestReaction(Tile::Bamboo5);
+        let event = state.apply(Input::Reactions(vec![PlayerAction::Pong {
+            seat: Wind::South,
+            from: Wind::East,
+            tile: Tile::Bamboo5,
+        }]));
+        assert!(matches!(
+            event,
+            Some(GameEvent::Action(PlayerAction::Pong { .. }))
+        ));
+        // Turn moves to the responder
+        assert_eq!(state.turn, Wind::South);
+        assert_eq!(state.phase, Phase::RequestDiscard);
+    }
+
+    #[test]
+    fn apply_reaction_all_skip_returns_none_and_advances_turn() {
+        let mut state = State::new(Wind::East, Wind::East);
+        state.phase = Phase::RequestReaction(Tile::Character1);
+        let event = state.apply(Input::Reactions(vec![
+            PlayerAction::Skip { seat: Wind::South },
+            PlayerAction::Skip { seat: Wind::West },
+            PlayerAction::Skip { seat: Wind::North },
+        ]));
+        assert!(event.is_none());
+        // Discard goes to East's river, turn advances to South
+        assert_eq!(state.seats[0].discards[0], Some(Tile::Character1));
+        assert_eq!(state.turn, Wind::South);
+        assert_eq!(state.phase, Phase::RequestDrawTile);
+    }
+
+    #[test]
+    fn apply_draw_tile_on_empty_wall_panics() {
+        // Drain the wall, then try to draw
+        let mut state = State::new(Wind::East, Wind::East);
+        while state.wall.yield_tile().is_some() {}
+        // Reset phase to RequestDrawTile
+        state.phase = Phase::RequestDrawTile;
+        let result =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                state.apply(Input::DrawTile);
+            }));
+        assert!(result.is_err(), "expected panic on empty wall");
+    }
+
+    // ── apply: invalid phase-action combinations panic ──
+
+    #[test]
+    #[should_panic(expected = "Invalid phase-action combination")]
+    fn apply_discard_during_draw_phase_panics() {
+        let mut state = State::new(Wind::East, Wind::East);
+        state.apply(Input::Discard(PlayerAction::Discard {
+            seat: Wind::East,
+            tile: Tile::Character1,
+        }));
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid phase-action combination")]
+    fn apply_draw_during_discard_phase_panics() {
+        let mut state = State::new(Wind::East, Wind::East);
+        state.phase = Phase::RequestDiscard;
+        state.apply(Input::DrawTile);
     }
 }
