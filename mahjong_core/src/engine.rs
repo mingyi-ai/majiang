@@ -205,7 +205,10 @@ impl<'a, P: Player> Engine<'a, P> {
         input: Input,
     ) -> Result<Option<GameEvent>, EngineError> {
         match (expected, &input) {
-            (Output::NeedSelfAction { options }, Input::SelfAction(action)) => {
+            (
+                Output::NeedSelfAction { options },
+                Input::SelfAction(action),
+            ) => {
                 check_in_options(action, options, "self-action")?;
                 Ok(self.state.apply(input))
             }
@@ -261,11 +264,18 @@ impl<'a, P: Player> Engine<'a, P> {
                         Prompted::Action(input) => input,
                         Prompted::Exit => return Ok(EngineOutput::UserExited),
                     };
-                    if let Some(event) = self.validate_and_apply(&output, input)? {
+                    if let Some(event) =
+                        self.validate_and_apply(&output, input)?
+                    {
                         on_event(&event);
-                        if matches!(&event, GameEvent::Action(PlayerAction::Hu { .. })) {
+                        if matches!(
+                            &event,
+                            GameEvent::Action(PlayerAction::Hu { .. })
+                        ) {
                             return Ok(EngineOutput::GameConcluded(
-                                GameResult::Hu { winner: event.seat() },
+                                GameResult::Hu {
+                                    winner: event.seat(),
+                                },
                             ));
                         }
                     }

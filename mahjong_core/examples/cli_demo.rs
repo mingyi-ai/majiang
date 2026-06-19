@@ -1,7 +1,8 @@
 use std::io::{self, BufRead, Write};
 
 use mahjong_core::{
-    Engine, EngineOutput, GameResult, Player, PlayerAction, PlayerDecision, Wind,
+    Engine, EngineOutput, GameEvent, GameResult, Player, PlayerAction,
+    PlayerDecision, Wind,
 };
 use rand::SeedableRng;
 use rand::rngs::StdRng;
@@ -60,8 +61,10 @@ fn run_game() {
 
     println!("\n── Game Start ──\n");
 
+    // Deal callback: show raw event for the CLI seat (East), hide tile
+    // identity for other seats to mimic private-per-player dealing.
     match engine.run(
-        |event| println!("  [deal] {:?}", event),
+        |event| print_deal_event(event, Wind::East),
         |event| println!("  {:?}", event),
     ) {
         Ok(EngineOutput::GameConcluded(result)) => {
@@ -128,5 +131,22 @@ fn wind_name(w: Wind) -> &'static str {
         Wind::South => "South",
         Wind::West => "West",
         Wind::North => "North",
+    }
+}
+
+/// Show the full deal event for the CLI seat and for any flower tiles
+/// (which are exposed to all players). For other seats' non-flower tiles,
+/// only announce which seat received a tile.
+fn print_deal_event(event: &GameEvent, reveal: Wind) {
+    match event {
+        GameEvent::DrawTile { seat, tile }
+            if *seat == reveal || tile.is_flower() =>
+        {
+            println!("  [deal] {:?}", event);
+        }
+        GameEvent::DrawTile { seat, .. } => {
+            println!("  [deal] Tile drawn for {:?}", seat);
+        }
+        _ => {}
     }
 }

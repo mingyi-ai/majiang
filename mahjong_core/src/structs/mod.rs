@@ -59,6 +59,14 @@ impl Wall {
         self.tiles.shuffle(rng);
     }
 
+    /// Replace a tile at a specific position. Used by tests to
+    /// inject flowers at known positions in an otherwise deterministic
+    /// wall.
+    #[cfg(test)]
+    pub(crate) fn set_tile(&mut self, index: usize, tile: Tile) {
+        self.tiles[index] = tile;
+    }
+
     /// Yields the next tile from the wall, if available.
     /// Advances the wall pointer.
     pub(crate) fn yield_tile(&mut self) -> Option<Tile> {
