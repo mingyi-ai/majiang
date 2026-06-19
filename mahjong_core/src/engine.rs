@@ -17,9 +17,8 @@ pub trait Player {
     fn decide(&self, options: &[PlayerAction]) -> PlayerDecision;
 }
 
-// ── Public types ──
+// ── Internal helpers ──
 
-/// Result of [`Engine::step()`].
 #[derive(Debug, Clone)]
 enum StepResult {
     Waiting { output: Output },
@@ -332,4 +331,399 @@ fn check_reactions(
         check_in_options(choice, options, "reaction")?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::round::Phase;
+    use crate::structs::{Hand, Tile};
+    use rand::SeedableRng;
+    use rand::rngs::StdRng;
+
+    /// A mock player that returns a canned decision.
+    struct MockPlayer {
+        decision: PlayerDecision,
+        /// Track how many times decide was called.
+        calls: std::cell::Cell<u32>,
+    }
+
+    impl MockPlayer {
+        fn new(decision: PlayerDecision) -> Self {
+            Self {
+                decision,
+                calls: std::cell::Cell::new(0),
+            }
+        }
+
+        fn call_count(&self) -> u32 {
+            self.calls.get()
+        }
+    }
+
+    impl Player for MockPlayer {
+        fn decide(&self, _options: &[PlayerAction]) -> PlayerDecision {
+            self.calls.set(self.calls.get() + 1);
+            self.decision
+        }
+    }
+
+    /// A player that always picks the first available action.
+    struct FirstOptionPlayer;
+    impl Player for FirstOptionPlayer {
+        fn decide(&self, options: &[PlayerAction]) -> PlayerDecision {
+            PlayerDecision::Pick(options[0])
+        }
+    }
+
+    fn hand_with(tiles: &[Tile]) -> Hand {
+        let mut h = Hand::default();
+        for &t in tiles {
+            h.concealed.insert(t);
+        }
+        h
+    }
+
+    // ── Engine construction ──
+
+    #[test]
+    fn engine_new_creates_state() {
+        let p = MockPlayer::new(PlayerDecision::Exit);
+        let mut rng = StdRng::seed_from_u64(1);
+        let engine = Engine::new(Wind::South, Wind::West, [&p; 4], &mut rng);
+        assert_eq!(engine.state().wind, Wind::South);
+        assert_eq!(engine.state().turn, Wind::West);
+        assert_eq!(engine.state().phase, Phase::RequestDrawTile);
+    }
+
+    #[test]
+    fn engine_player_returns_correct_seat() {
+        let players = [
+            MockPlayer::new(PlayerDecision::Exit),
+            MockPlayer::new(PlayerDecision::Exit),
+            MockPlayer::new(PlayerDecision::Exit),
+            MockPlayer::new(PlayerDecision::Exit),
+        ];
+        let mut rng = StdRng::seed_from_u64(1);
+        // We need different players per seat, so build Engine differently
+        let refs: [&MockPlayer; 4] =
+            [&players[0], &players[1], &players[2], &players[3]];
+        let engine = Engine::new(Wind::East, Wind::East, refs, &mut rng);
+        assert_eq!(
+            engine.player(Wind::East) as *const _,
+            &players[0] as *const _
+        );
+        assert_eq!(
+            engine.player(Wind::South) as *const _,
+            &players[1] as *const _
+        );
+        assert_eq!(
+            engine.player(Wind::West) as *const _,
+            &players[2] as *const _
+        );
+        assert_eq!(
+            engine.player(Wind::North) as *const _,
+            &players[3] as *const _
+        );
+    }
+
+    #[test]
+    fn engine_into_state_consumes() {
+        let p = MockPlayer::new(PlayerDecision::Exit);
+        let mut rng = StdRng::seed_from_u64(1);
+        let engine = Engine::new(Wind::East, Wind::East, [&p; 4], &mut rng);
+        let _state = engine.into_state();
+        // Compile-time check: engine is consumed
+    }
+
+    // ── Engine::step ──
+
+    #[test]
+    fn step_auto_draws_then_skips_to_discard() {
+        let p = MockPlayer::new(PlayerDecision::Exit);
+        let mut rng = StdRng::seed_from_u64(1);
+        let mut engine =
+            Engine::new(Wind::East, Wind::East, [&p; 4], &mut rng);
+        let mut events = Vec::new();
+        let result = engine.step(|e| events.push(e.clone())).unwrap();
+        assert!(matches!(result, StepResult::Waiting { .. }));
+        assert_eq!(events.len(), 1);
+        assert!(matches!(events[0], GameEvent::DrawTile { .. }));
+        // After draw, the hand has 1 tile. Self-action options are empty
+        // (no kong/hu possible), so step auto-skips to RequestDiscard.
+        assert_eq!(engine.state.phase, Phase::RequestDiscard);
+    }
+
+    #[test]
+    fn step_auto_skip_when_no_self_options() {
+        let p = MockPlayer::new(PlayerDecision::Exit);
+        let mut rng = StdRng::seed_from_u64(1);
+        let mut engine =
+            Engine::new(Wind::East, Wind::East, [&p; 4], &mut rng);
+        // Step once to draw a tile
+        let _ = engine.step(|_| {}).unwrap();
+        // Now phase is RequestSelfAction with an empty hand → options empty
+        // Step again should auto-skip to RequestDiscard
+        let result = engine.step(|_| {}).unwrap();
+        assert!(matches!(result, StepResult::Waiting { .. }));
+        assert_eq!(engine.state.phase, Phase::RequestDiscard);
+    }
+
+    #[test]
+    fn step_returns_over_when_wall_empty() {
+        let p = MockPlayer::new(PlayerDecision::Exit);
+        let mut rng = StdRng::seed_from_u64(1);
+        let mut engine =
+            Engine::new(Wind::East, Wind::East, [&p; 4], &mut rng);
+        // Drain the wall
+        while engine.state.wall.yield_tile().is_some() {}
+        // Reset phase to RequestDrawTile (simulate mid-game empty wall)
+        engine.state.phase = Phase::RequestDrawTile;
+        let result = engine.step(|_| {}).unwrap();
+        assert!(matches!(result, StepResult::Over));
+    }
+
+    // ── Engine::prompt ──
+
+    #[test]
+    fn prompt_self_action_delegates_to_current_turn() {
+        let p = MockPlayer::new(PlayerDecision::Pick(PlayerAction::Skip {
+            seat: Wind::East,
+        }));
+        let mut rng = StdRng::seed_from_u64(1);
+        let engine = Engine::new(Wind::East, Wind::East, [&p; 4], &mut rng);
+        let output = Output::NeedSelfAction {
+            options: vec![PlayerAction::Skip { seat: Wind::East }],
+        };
+        match engine.prompt(&output) {
+            Prompted::Action(Input::SelfAction(PlayerAction::Skip {
+                seat,
+            })) => {
+                assert_eq!(seat, Wind::East);
+            }
+            other => panic!("expected SelfAction, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn prompt_reactions_collects_all_seats() {
+        let p_south =
+            MockPlayer::new(PlayerDecision::Pick(PlayerAction::Skip {
+                seat: Wind::South,
+            }));
+        let p_west =
+            MockPlayer::new(PlayerDecision::Pick(PlayerAction::Skip {
+                seat: Wind::West,
+            }));
+        let p_north =
+            MockPlayer::new(PlayerDecision::Pick(PlayerAction::Skip {
+                seat: Wind::North,
+            }));
+        let p_east =
+            MockPlayer::new(PlayerDecision::Pick(PlayerAction::Skip {
+                seat: Wind::East,
+            }));
+        let refs: [&MockPlayer; 4] = [&p_east, &p_south, &p_west, &p_north];
+        let mut rng = StdRng::seed_from_u64(1);
+        let engine = Engine::new(Wind::East, Wind::East, refs, &mut rng);
+
+        let options = vec![
+            PlayerAction::Skip { seat: Wind::South },
+            PlayerAction::Skip { seat: Wind::West },
+            PlayerAction::Skip { seat: Wind::North },
+        ];
+        match engine.prompt(&Output::NeedReactions { options }) {
+            Prompted::Action(Input::Reactions(choices)) => {
+                assert_eq!(choices.len(), 3);
+            }
+            other => panic!("expected Reactions, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn prompt_exit_on_player_exit() {
+        let p = MockPlayer::new(PlayerDecision::Exit);
+        let mut rng = StdRng::seed_from_u64(1);
+        let engine = Engine::new(Wind::East, Wind::East, [&p; 4], &mut rng);
+        let output = Output::NeedSelfAction {
+            options: vec![PlayerAction::Skip { seat: Wind::East }],
+        };
+        assert!(matches!(engine.prompt(&output), Prompted::Exit));
+    }
+
+    // ── Engine::validate_and_apply ──
+
+    #[test]
+    fn validate_and_apply_valid_self_action() {
+        let p = MockPlayer::new(PlayerDecision::Exit);
+        let mut rng = StdRng::seed_from_u64(1);
+        let mut engine =
+            Engine::new(Wind::East, Wind::East, [&p; 4], &mut rng);
+        engine.state.phase = Phase::RequestSelfAction(Tile::Character1);
+        let output = Output::NeedSelfAction {
+            options: vec![PlayerAction::Skip { seat: Wind::East }],
+        };
+        let result = engine.validate_and_apply(
+            &output,
+            Input::SelfAction(PlayerAction::Skip { seat: Wind::East }),
+        );
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn validate_and_apply_invalid_self_action_returns_error() {
+        let p = MockPlayer::new(PlayerDecision::Exit);
+        let mut rng = StdRng::seed_from_u64(1);
+        let mut engine =
+            Engine::new(Wind::East, Wind::East, [&p; 4], &mut rng);
+        engine.state.phase = Phase::RequestSelfAction(Tile::Character1);
+        let output = Output::NeedSelfAction {
+            options: vec![PlayerAction::Skip { seat: Wind::East }],
+        };
+        let result = engine.validate_and_apply(
+            &output,
+            Input::SelfAction(PlayerAction::ConcealedKong {
+                seat: Wind::East,
+                tile: Tile::Red,
+            }),
+        );
+        assert!(matches!(result, Err(EngineError::InvalidInput(_))));
+    }
+
+    #[test]
+    fn validate_and_apply_phase_mismatch_returns_error() {
+        let p = MockPlayer::new(PlayerDecision::Exit);
+        let mut rng = StdRng::seed_from_u64(1);
+        let mut engine =
+            Engine::new(Wind::East, Wind::East, [&p; 4], &mut rng);
+        let output = Output::NeedDiscard {
+            options: vec![PlayerAction::Discard {
+                seat: Wind::East,
+                tile: Tile::Character1,
+            }],
+        };
+        // Send SelfAction during a Discard phase
+        let result = engine.validate_and_apply(
+            &output,
+            Input::SelfAction(PlayerAction::Skip { seat: Wind::East }),
+        );
+        assert!(matches!(result, Err(EngineError::InvalidInput(_))));
+    }
+
+    // ── check_in_options / check_reactions ──
+
+    #[test]
+    fn check_in_options_ok_when_present() {
+        let action = PlayerAction::Skip { seat: Wind::East };
+        let options = vec![PlayerAction::Skip { seat: Wind::East }];
+        assert!(check_in_options(&action, &options, "test").is_ok());
+    }
+
+    #[test]
+    fn check_in_options_err_when_absent() {
+        let action = PlayerAction::Skip { seat: Wind::East };
+        let options = vec![PlayerAction::Skip { seat: Wind::South }];
+        assert!(matches!(
+            check_in_options(&action, &options, "test"),
+            Err(EngineError::InvalidInput(_))
+        ));
+    }
+
+    #[test]
+    fn check_reactions_rejects_current_turn_seat() {
+        let choices = vec![PlayerAction::Skip { seat: Wind::East }];
+        let options = vec![PlayerAction::Skip { seat: Wind::East }];
+        assert!(matches!(
+            check_reactions(&choices, &options, Wind::East),
+            Err(EngineError::InvalidInput(msg)) if msg.contains("current turn")
+        ));
+    }
+
+    #[test]
+    fn check_reactions_rejects_duplicate_seat() {
+        let choices = vec![
+            PlayerAction::Skip { seat: Wind::South },
+            PlayerAction::Skip { seat: Wind::South },
+        ];
+        let options = vec![PlayerAction::Skip { seat: Wind::South }];
+        assert!(matches!(
+            check_reactions(&choices, &options, Wind::East),
+            Err(EngineError::InvalidInput(msg)) if msg.contains("duplicate")
+        ));
+    }
+
+    // ── Engine::run (integration) ──
+
+    #[test]
+    fn run_user_exit_on_first_prompt() {
+        let p = MockPlayer::new(PlayerDecision::Exit);
+        let mut rng = StdRng::seed_from_u64(1);
+        let mut engine =
+            Engine::new(Wind::East, Wind::East, [&p; 4], &mut rng);
+        let result = engine.run(|_| {}, |_| {});
+        assert!(matches!(result, Ok(EngineOutput::UserExited)));
+        // Player should have been prompted exactly once (after deal + auto-draw)
+        assert_eq!(p.call_count(), 1);
+    }
+
+    #[test]
+    fn run_concludes_with_first_option_player() {
+        let mut rng = StdRng::seed_from_u64(1);
+        let mut engine = Engine::new(
+            Wind::East,
+            Wind::East,
+            [
+                &FirstOptionPlayer,
+                &FirstOptionPlayer,
+                &FirstOptionPlayer,
+                &FirstOptionPlayer,
+            ],
+            &mut rng,
+        );
+        let result = engine.run(|_| {}, |_| {});
+        // With first-option picking, the game should progress to a conclusion
+        // (draw when wall runs out, or hu if a hand happens to be complete).
+        assert!(
+            matches!(result, Ok(EngineOutput::GameConcluded(_))),
+            "expected game concluded, got {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn run_invalid_action_returns_error() {
+        struct BadPlayer;
+        impl Player for BadPlayer {
+            fn decide(&self, options: &[PlayerAction]) -> PlayerDecision {
+                // If discard options include Character1, pick it (valid).
+                // Otherwise return a tile not in options.
+                for &opt in options {
+                    if let PlayerAction::Discard {
+                        tile: Tile::Character1,
+                        ..
+                    } = opt
+                    {
+                        return PlayerDecision::Pick(opt);
+                    }
+                }
+                PlayerDecision::Pick(PlayerAction::Discard {
+                    seat: Wind::East,
+                    tile: Tile::Dot9,
+                })
+            }
+        }
+
+        let mut rng = StdRng::seed_from_u64(1);
+        let mut engine = Engine::new(
+            Wind::East,
+            Wind::East,
+            [&BadPlayer, &BadPlayer, &BadPlayer, &BadPlayer],
+            &mut rng,
+        );
+        // Give East a Dot3 so there's at least one discard option.
+        // BadPlayer will try to discard Dot9 which isn't in hand → error.
+        engine.state.seats[0].hand = hand_with(&[Tile::Dot3]);
+        let result = engine.run(|_| {}, |_| {});
+        assert!(matches!(result, Err(EngineError::InvalidInput(_))));
+    }
 }
