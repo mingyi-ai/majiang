@@ -445,7 +445,7 @@ mod tests {
         let mut engine =
             Engine::new(Wind::East, Wind::East, [&p; 4], &mut rng);
         let mut events = Vec::new();
-        let result = engine.step(|e| events.push(e.clone())).unwrap();
+        let result = engine.step(|e| events.push(*e)).unwrap();
         assert!(matches!(result, StepResult::Waiting { .. }));
         assert_eq!(events.len(), 1);
         assert!(matches!(events[0], GameEvent::DrawTile { .. }));

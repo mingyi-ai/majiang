@@ -112,10 +112,11 @@ impl Player for DemoPlayer {
                 if line == "q" || line == "quit" {
                     return PlayerDecision::Exit;
                 }
-                if let Ok(n) = line.parse::<usize>() {
-                    if n >= 1 && n <= options.len() {
-                        return PlayerDecision::Pick(options[n - 1]);
-                    }
+                if let Ok(n) = line.parse::<usize>()
+                    && n >= 1
+                    && n <= options.len()
+                {
+                    return PlayerDecision::Pick(options[n - 1]);
                 }
                 println!("  Invalid — enter 1-{} or q.", options.len());
             }

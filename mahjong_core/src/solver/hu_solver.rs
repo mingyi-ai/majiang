@@ -79,8 +79,8 @@ impl HuSolver {
     /// Try each possible pair in the suit rows, return eye bitmasks.
     fn check_suits_for_pair(counts: &BitTileCounts) -> [u64; 4] {
         let mut eyes = [0u64; 4];
-        for row_idx in 0..3 {
-            let mut row = counts.rows[row_idx];
+        for (row_idx, mut row) in counts.rows[..3].iter().copied().enumerate()
+        {
             while row != 0 {
                 let shift = row.trailing_zeros() as usize;
                 let nibble = (row >> shift) & 0xF;

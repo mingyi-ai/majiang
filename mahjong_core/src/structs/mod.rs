@@ -123,7 +123,7 @@ mod tests {
 
         // Yield all tiles
         let mut count = 0usize;
-        while let Some(_) = wall.yield_tile() {
+        while wall.yield_tile().is_some() {
             count += 1;
         }
 
@@ -145,7 +145,7 @@ mod tests {
         }
 
         // Drain the rest
-        while let Some(_) = wall.yield_tile() {}
+        while wall.yield_tile().is_some() {}
 
         assert!(wall.is_empty());
     }

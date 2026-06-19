@@ -290,10 +290,10 @@ mod tests {
         // Count non-flower tiles per seat from the event stream.
         let mut counts = [0u16; 4];
         for event in &events {
-            if let GameEvent::DrawTile { seat, tile } = event {
-                if !tile.is_flower() {
-                    counts[*seat as usize] += 1;
-                }
+            if let GameEvent::DrawTile { seat, tile } = event
+                && !tile.is_flower()
+            {
+                counts[*seat as usize] += 1;
             }
         }
 

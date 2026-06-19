@@ -366,16 +366,16 @@ mod tests {
     fn add_to_row_matches_insert() {
         let mut row = 0u64;
         BitTileCounts::add_to_row(&mut row, 0);
-        assert_eq!((row >> 0) & TILE_COUNT_MASK, 0b0001);
+        assert_eq!(row & TILE_COUNT_MASK, 0b0001);
 
         BitTileCounts::add_to_row(&mut row, 0);
-        assert_eq!((row >> 0) & TILE_COUNT_MASK, 0b0011);
+        assert_eq!(row & TILE_COUNT_MASK, 0b0011);
 
         BitTileCounts::add_to_row(&mut row, 0);
-        assert_eq!((row >> 0) & TILE_COUNT_MASK, 0b0111);
+        assert_eq!(row & TILE_COUNT_MASK, 0b0111);
 
         BitTileCounts::add_to_row(&mut row, 0);
-        assert_eq!((row >> 0) & TILE_COUNT_MASK, 0b1111);
+        assert_eq!(row & TILE_COUNT_MASK, 0b1111);
     }
 
     #[test]
@@ -385,7 +385,7 @@ mod tests {
         BitTileCounts::add_to_row(&mut row, 4);
         assert_eq!((row >> 4) & TILE_COUNT_MASK, 0b0011);
         // shift 0 should still be empty
-        assert_eq!((row >> 0) & TILE_COUNT_MASK, 0b0000);
+        assert_eq!(row & TILE_COUNT_MASK, 0b0000);
     }
 
     // ── remove_nibble (static helper) ──
@@ -488,7 +488,7 @@ mod tests {
 
         BitTileCounts::remove_sequence_from_row(&mut row, 0);
 
-        assert_eq!((row >> 0) & TILE_COUNT_MASK, 0b0000);
+        assert_eq!(row & TILE_COUNT_MASK, 0b0000);
         assert_eq!((row >> 4) & TILE_COUNT_MASK, 0b0000);
         assert_eq!((row >> 8) & TILE_COUNT_MASK, 0b0000);
     }
@@ -507,7 +507,7 @@ mod tests {
         BitTileCounts::remove_sequence_from_row(&mut row, 0);
 
         assert_eq!(
-            ((row >> 0) & TILE_COUNT_MASK).count_ones(),
+            (row & TILE_COUNT_MASK).count_ones(),
             1,
             "Ch1 should have 1 remaining"
         );
@@ -529,7 +529,7 @@ mod tests {
     fn lsb_fill_pattern_is_monotonic() {
         // The four LSB-fill patterns for counts 0..4
         let expected = [0b0000u64, 0b0001, 0b0011, 0b0111, 0b1111];
-        for count in 0..=4usize {
+        for (count, &expected_nibble) in expected.iter().enumerate() {
             // Build it by inserting `count` times
             let mut b = BitTileCounts::default();
             for _ in 0..count {
@@ -537,9 +537,9 @@ mod tests {
             }
             let nibble = (b.rows[0] >> 8) & TILE_COUNT_MASK;
             assert_eq!(
-                nibble, expected[count],
+                nibble, expected_nibble,
                 "LSB-fill for count {} should be {:#06b}, got {:#06b}",
-                count, expected[count], nibble
+                count, expected_nibble, nibble
             );
             assert_eq!(nibble.count_ones() as usize, count);
         }
