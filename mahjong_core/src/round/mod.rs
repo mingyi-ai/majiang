@@ -1,0 +1,517 @@
+mod actions;
+mod state;
+
+pub use state::{GameEvent, Phase, PlayerAction, SeatState, State};
+
+use crate::structs::{Wall, Wind};
+
+#[derive(Debug, Clone)]
+pub enum Output {
+    NeedDrawTile,
+    NeedSelfAction { options: Vec<PlayerAction> },
+    NeedDiscard { options: Vec<PlayerAction> },
+    NeedReactions { options: Vec<PlayerAction> },
+}
+
+#[derive(Debug, Clone)]
+pub enum Input {
+    DrawTile,
+    SelfAction(PlayerAction),
+    Discard(PlayerAction),
+    Reactions(Vec<PlayerAction>),
+}
+
+impl State {
+    /// Create an uninitialized state for low-level use (deserialization,
+    /// replay). The wall is NOT shuffled and hands are empty. Most callers
+    /// should use [`new_shuffled`] instead.
+    pub fn new(wind: Wind, turn: Wind) -> Self {
+        Self {
+            wind,
+            wall: Wall::new_mcr(),
+            turn,
+            phase: Phase::RequestDrawTile,
+            seats: [SeatState::default(); 4],
+        }
+    }
+
+    /// Create a fully initialized state: shuffle the wall using the
+    /// caller-provided RNG (enabling deterministic seeds for testing).
+    ///
+    /// Hands are empty — tiles are dealt when the board starts running.
+    pub fn new_shuffled<R: rand::Rng>(
+        wind: Wind,
+        turn: Wind,
+        rng: &mut R,
+    ) -> Self {
+        let mut wall = Wall::new_mcr();
+        wall.shuffle(rng);
+        Self {
+            wind,
+            wall,
+            turn,
+            phase: Phase::RequestDrawTile,
+            seats: [SeatState::default(); 4],
+        }
+    }
+
+    /// Deal 13 non-flower tiles to each seat, following the standard
+    /// alternating draw sequence: East → South → West → North → East → …
+    ///
+    /// When a flower is drawn, the replacement tile is drawn immediately
+    /// for the same seat (inline flower replacement).
+    ///
+    /// Yields one `GameEvent::DrawTile` per tile drawn.
+    /// Called by [`Engine::run`](crate::engine::Engine::run) at the start
+    /// of each round.
+    pub(crate) fn deal(&mut self) -> Vec<GameEvent> {
+        const HAND_TILE_COUNTS: usize = 13;
+        let mut events = Vec::new();
+        let order = [
+            self.wind,
+            self.wind.next(),
+            self.wind.next().next(),
+            self.wind.next().next().next(),
+        ];
+
+        for _ in 0..HAND_TILE_COUNTS {
+            for seat in order {
+                // Draw for this seat; if flower, draw again immediately.
+                loop {
+                    let tile = self
+                        .wall
+                        .yield_tile()
+                        .expect("Wall is empty during initial deal");
+
+                    self.seats[seat as usize].hand.add_tile(tile);
+                    events.push(GameEvent::DrawTile { seat, tile });
+                    if !tile.is_flower() {
+                        break;
+                    }
+                }
+            }
+        }
+        events
+    }
+}
+
+impl State {
+    /// Peek at the current state. Never mutates.
+    pub fn query(&self) -> Output {
+        match self.phase {
+            Phase::RequestDrawTile => Output::NeedDrawTile,
+            Phase::RequestSelfAction(drawn_tile) => Output::NeedSelfAction {
+                options: self.self_action_options(drawn_tile),
+            },
+            Phase::RequestDiscard => Output::NeedDiscard {
+                options: self.discard_options(),
+            },
+            Phase::RequestReaction(tile) => Output::NeedReactions {
+                options: self.reaction_options(tile),
+            },
+        }
+    }
+
+    /// Apply an input action, mutate state.
+    ///
+    /// Returns `Some(GameEvent)` for events visible at the table
+    /// (tile draws, real player actions). Returns `None` for internal
+    /// mechanics (skips, turn advances) that the caller doesn't need
+    /// to see — the flow is inferred from subsequent events.
+    pub fn apply(&mut self, input: Input) -> Option<GameEvent> {
+        match (self.phase, input.clone()) {
+            (Phase::RequestDrawTile, Input::DrawTile) => {
+                let tile = self.draw_tile();
+                if !tile.is_flower() {
+                    self.phase = Phase::RequestSelfAction(tile);
+                }
+                Some(GameEvent::DrawTile {
+                    seat: self.turn,
+                    tile,
+                })
+            }
+            (Phase::RequestSelfAction(_), Input::SelfAction(action)) => {
+                self.phase = self.apply_self_action(action);
+                if matches!(action, PlayerAction::Skip { .. }) {
+                    None // skip is internal; next event is the discard
+                } else {
+                    Some(GameEvent::Action(action))
+                }
+            }
+            (Phase::RequestDiscard, Input::Discard(action)) => {
+                self.phase = self.apply_discard(action);
+                Some(GameEvent::Action(action))
+            }
+            (Phase::RequestReaction(tile), Input::Reactions(choices)) => {
+                let action = self.resolve_reactions(&choices);
+                (self.turn, self.phase) = self.apply_reaction(action, tile);
+                action.map(GameEvent::Action)
+            }
+            _ => panic!(
+                "Invalid phase-action combination: {:?} {:?}",
+                self.phase, input
+            ),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::structs::{Hand, Tile};
+
+    // ── Helpers ──
+
+    fn hand_with(tiles: &[Tile]) -> Hand {
+        let mut h = Hand::default();
+        for &t in tiles {
+            h.concealed.insert(t);
+        }
+        h
+    }
+
+    #[test]
+    fn test_deal_exact_count_unshuffled() {
+        let mut state = State::new(Wind::East, Wind::East);
+        let events = state.deal();
+        assert_eq!(events.len(), 52, "no flowers in unshuffled wall");
+    }
+
+    #[test]
+    fn test_deal_alternating_sequence() {
+        let mut state = State::new(Wind::East, Wind::East);
+        let events = state.deal();
+        for round in 0..13 {
+            let base = round * 4;
+            assert_eq!(
+                events[base].seat(),
+                Wind::East,
+                "round {round}, event 0"
+            );
+            assert_eq!(
+                events[base + 1].seat(),
+                Wind::South,
+                "round {round}, event 1"
+            );
+            assert_eq!(
+                events[base + 2].seat(),
+                Wind::West,
+                "round {round}, event 2"
+            );
+            assert_eq!(
+                events[base + 3].seat(),
+                Wind::North,
+                "round {round}, event 3"
+            );
+        }
+    }
+
+    #[test]
+    fn test_deal_all_events_are_draw_tile() {
+        let mut state = State::new(Wind::East, Wind::East);
+        for (i, event) in state.deal().iter().enumerate() {
+            assert!(
+                matches!(event, GameEvent::DrawTile { .. }),
+                "event {i} should be DrawTile, got {event:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_deal_rotation_from_each_start_wind() {
+        for start in Wind::iter() {
+            let mut state = State::new(start, start);
+            let events = state.deal();
+            assert_eq!(
+                events[0].seat(),
+                start,
+                "first tile should go to {start:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_deal_flower_replacement_same_seat() {
+        let mut state = State::new(Wind::East, Wind::East);
+
+        // Replace the first four tiles in the alternating deal with
+        // flowers (one per seat): positions 0 → East, 2 → South,
+        // 4 → West, 6 → North. The replacement draws at positions
+        // 1, 3, 5, 7 remain as-is (Character1, non-flower).
+        let flowers = [
+            (0, Tile::Plum),
+            (2, Tile::Orchid),
+            (4, Tile::Chrysanthemum),
+            (6, Tile::BambooF),
+        ];
+        for &(idx, tile) in &flowers {
+            state.wall.set_tile(idx, tile);
+        }
+
+        let events = state.deal();
+
+        // 52 non-flower + 4 flower tiles
+        assert_eq!(events.len(), 56, "4 flowers → 56 events");
+
+        // Each seat's first tile is a flower, followed immediately
+        // by a replacement draw for the same seat.
+        let flower_positions = [0, 2, 4, 6];
+        for &pos in &flower_positions {
+            let flower = &events[pos];
+            let replacement = &events[pos + 1];
+            match (flower, replacement) {
+                (
+                    GameEvent::DrawTile { tile, seat },
+                    GameEvent::DrawTile { seat: seat2, .. },
+                ) => {
+                    assert!(
+                        tile.is_flower(),
+                        "event {pos} should be a flower"
+                    );
+                    assert_eq!(
+                        seat2, seat,
+                        "replacement should be same seat as flower at {pos}"
+                    );
+                }
+                _ => panic!("unexpected event at {pos}"),
+            }
+        }
+    }
+
+    #[test]
+    fn test_deal_hand_counts() {
+        use rand::SeedableRng;
+        use rand::rngs::StdRng;
+
+        let mut rng = StdRng::seed_from_u64(42);
+        let mut state = State::new_shuffled(Wind::East, Wind::East, &mut rng);
+        let events = state.deal();
+
+        // Count non-flower tiles per seat from the event stream.
+        let mut counts = [0u16; 4];
+        for event in &events {
+            if let GameEvent::DrawTile { seat, tile } = event
+                && !tile.is_flower()
+            {
+                counts[*seat as usize] += 1;
+            }
+        }
+
+        for seat in Wind::iter() {
+            assert_eq!(
+                counts[seat as usize], 13,
+                "{seat:?} should have 13 non-flower tiles"
+            );
+        }
+
+        let flower_count = events.iter().filter(|e| {
+            matches!(e, GameEvent::DrawTile { tile, .. } if tile.is_flower())
+        }).count();
+        assert_eq!(events.len(), 52 + flower_count);
+    }
+
+    // ── query ──
+
+    #[test]
+    fn query_need_draw_tile() {
+        let state = State::new(Wind::East, Wind::East);
+        assert!(matches!(state.query(), Output::NeedDrawTile));
+    }
+
+    #[test]
+    fn query_need_self_action() {
+        let mut state = State::new(Wind::East, Wind::East);
+        state.phase = Phase::RequestSelfAction(Tile::Character1);
+        match state.query() {
+            Output::NeedSelfAction { options } => {
+                assert!(options.is_empty()); // empty hand → no options
+            }
+            other => panic!("expected NeedSelfAction, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn query_need_discard() {
+        let mut state = State::new(Wind::East, Wind::East);
+        state.seats[0].hand = hand_with(&[Tile::Dot3]);
+        state.phase = Phase::RequestDiscard;
+        match state.query() {
+            Output::NeedDiscard { options } => {
+                assert!(options.iter().any(|a| matches!(
+                    a,
+                    PlayerAction::Discard {
+                        tile: Tile::Dot3,
+                        ..
+                    }
+                )));
+            }
+            other => panic!("expected NeedDiscard, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn query_need_reactions() {
+        let mut state = State::new(Wind::East, Wind::East);
+        state.seats[1].hand = hand_with(&[Tile::Bamboo5, Tile::Bamboo5]);
+        state.phase = Phase::RequestReaction(Tile::Bamboo5);
+        match state.query() {
+            Output::NeedReactions { options } => {
+                assert!(
+                    options
+                        .iter()
+                        .any(|a| matches!(a, PlayerAction::Pong { .. }))
+                );
+            }
+            other => panic!("expected NeedReactions, got {:?}", other),
+        }
+    }
+
+    // ── apply: phase transitions ──
+
+    #[test]
+    fn apply_draw_tile_non_flower() {
+        let mut state = State::new(Wind::East, Wind::East);
+        let event = state.apply(Input::DrawTile);
+        // Should yield a DrawTile event
+        assert!(matches!(
+            event,
+            Some(GameEvent::DrawTile {
+                seat: Wind::East,
+                tile: Tile::Character1
+            })
+        ));
+        // Phase transitions to RequestSelfAction for non-flower tiles
+        assert_eq!(state.phase, Phase::RequestSelfAction(Tile::Character1));
+    }
+
+    #[test]
+    fn apply_draw_tile_flower_stays_in_draw_phase() {
+        let mut state = State::new(Wind::East, Wind::East);
+        // Replace the first wall tile with a flower
+        state.wall.set_tile(0, Tile::Plum);
+        let event = state.apply(Input::DrawTile);
+        assert!(matches!(
+            event,
+            Some(GameEvent::DrawTile {
+                seat: Wind::East,
+                tile: Tile::Plum
+            })
+        ));
+        // Phase stays RequestDrawTile so the caller draws a replacement
+        assert_eq!(state.phase, Phase::RequestDrawTile);
+    }
+
+    #[test]
+    fn apply_skip_returns_none_and_transitions_to_discard() {
+        let mut state = State::new(Wind::East, Wind::East);
+        state.phase = Phase::RequestSelfAction(Tile::Character1);
+        let event = state
+            .apply(Input::SelfAction(PlayerAction::Skip { seat: Wind::East }));
+        // Skip yields no event (internal mechanic)
+        assert!(event.is_none());
+        assert_eq!(state.phase, Phase::RequestDiscard);
+    }
+
+    #[test]
+    fn apply_concealed_kong_emits_action_and_returns_to_draw() {
+        let mut state = State::new(Wind::East, Wind::East);
+        state.seats[0].hand =
+            hand_with(&[Tile::Red, Tile::Red, Tile::Red, Tile::Red]);
+        state.phase = Phase::RequestSelfAction(Tile::Red);
+        let event =
+            state.apply(Input::SelfAction(PlayerAction::ConcealedKong {
+                seat: Wind::East,
+                tile: Tile::Red,
+            }));
+        assert!(matches!(
+            event,
+            Some(GameEvent::Action(PlayerAction::ConcealedKong { .. }))
+        ));
+        assert_eq!(state.phase, Phase::RequestDrawTile);
+    }
+
+    #[test]
+    fn apply_discard_emits_action_and_transitions_to_reaction() {
+        let mut state = State::new(Wind::East, Wind::East);
+        state.seats[0].hand = hand_with(&[Tile::Dot3]);
+        state.phase = Phase::RequestDiscard;
+        let event = state.apply(Input::Discard(PlayerAction::Discard {
+            seat: Wind::East,
+            tile: Tile::Dot3,
+        }));
+        assert!(matches!(
+            event,
+            Some(GameEvent::Action(PlayerAction::Discard { .. }))
+        ));
+        assert_eq!(state.phase, Phase::RequestReaction(Tile::Dot3));
+    }
+
+    #[test]
+    fn apply_reaction_pong_emits_action_and_gives_turn_to_responder() {
+        let mut state = State::new(Wind::East, Wind::East);
+        state.seats[1].hand = hand_with(&[Tile::Bamboo5, Tile::Bamboo5]);
+        state.phase = Phase::RequestReaction(Tile::Bamboo5);
+        let event = state.apply(Input::Reactions(vec![PlayerAction::Pong {
+            seat: Wind::South,
+            from: Wind::East,
+            tile: Tile::Bamboo5,
+        }]));
+        assert!(matches!(
+            event,
+            Some(GameEvent::Action(PlayerAction::Pong { .. }))
+        ));
+        // Turn moves to the responder
+        assert_eq!(state.turn, Wind::South);
+        assert_eq!(state.phase, Phase::RequestDiscard);
+    }
+
+    #[test]
+    fn apply_reaction_all_skip_returns_none_and_advances_turn() {
+        let mut state = State::new(Wind::East, Wind::East);
+        state.phase = Phase::RequestReaction(Tile::Character1);
+        let event = state.apply(Input::Reactions(vec![
+            PlayerAction::Skip { seat: Wind::South },
+            PlayerAction::Skip { seat: Wind::West },
+            PlayerAction::Skip { seat: Wind::North },
+        ]));
+        assert!(event.is_none());
+        // Discard goes to East's river, turn advances to South
+        assert_eq!(state.seats[0].discards[0], Some(Tile::Character1));
+        assert_eq!(state.turn, Wind::South);
+        assert_eq!(state.phase, Phase::RequestDrawTile);
+    }
+
+    #[test]
+    fn apply_draw_tile_on_empty_wall_panics() {
+        // Drain the wall, then try to draw
+        let mut state = State::new(Wind::East, Wind::East);
+        while state.wall.yield_tile().is_some() {}
+        // Reset phase to RequestDrawTile
+        state.phase = Phase::RequestDrawTile;
+        let result =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                state.apply(Input::DrawTile);
+            }));
+        assert!(result.is_err(), "expected panic on empty wall");
+    }
+
+    // ── apply: invalid phase-action combinations panic ──
+
+    #[test]
+    #[should_panic(expected = "Invalid phase-action combination")]
+    fn apply_discard_during_draw_phase_panics() {
+        let mut state = State::new(Wind::East, Wind::East);
+        state.apply(Input::Discard(PlayerAction::Discard {
+            seat: Wind::East,
+            tile: Tile::Character1,
+        }));
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid phase-action combination")]
+    fn apply_draw_during_discard_phase_panics() {
+        let mut state = State::new(Wind::East, Wind::East);
+        state.phase = Phase::RequestDiscard;
+        state.apply(Input::DrawTile);
+    }
+}

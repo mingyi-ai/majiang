@@ -41,3 +41,12 @@ Thumbs.db
 
 # sccache cache
 .sccache/
+
+# python venv
+.venv/
+
+# python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd

@@ -1,7 +1,11 @@
-pub mod bit_hand;
-pub mod bits;
 pub mod engine;
-pub mod event;
-pub mod hu_solver;
 pub mod round;
-pub mod tile;
+pub mod solver;
+pub mod structs;
+
+// Re-exports for common usage.
+pub use engine::{
+    Engine, EngineError, EngineOutput, GameResult, Player, PlayerDecision,
+};
+pub use round::{GameEvent, PlayerAction};
+pub use structs::Wind;
