@@ -1,20 +1,23 @@
+use crate::array_vec::ArrayVec;
 use crate::structs::{Meld, Pair, Tile};
 
 /// A complete decomposition of a winning hand.
 ///
-/// Combines declared melds (from `Hand.melds`) with the decomposition
-/// of the concealed tiles. Fan rule extractors operate on this type.
+/// Fan rule extractors pattern-match on this type.
+/// The solver produces one or more `Decomposition` values for a given hand;
+/// each represents a valid way to interpret the tiles as a winning pattern.
 pub enum Decomposition {
+    /// 4 sets + 1 pair (or fewer sets with declared melds).
     Standard {
         pair: Pair,
-        sets: [Meld; 4],
+        sets: ArrayVec<Meld, 4>,
     },
     SevenPairs {
         pairs: [Pair; 7],
     },
     ThirteenOrphans {
         pair: Pair,
-        tiles: [Tile; 12],
+        tiles: [Tile; 13],
     },
     GreaterHonorsAndKnittedTiles {
         honors: [Tile; 7],
@@ -33,14 +36,4 @@ pub enum Decomposition {
         tiles: [Tile; 9],
         set: Meld,
     },
-}
-
-/// Internal: decomposition of concealed tiles only (no declared melds).
-///
-/// Uses a fixed-size array instead of `Vec` — stack-allocated, no heap.
-#[derive(Clone, Copy)]
-pub(crate) struct ConcealedDecomp {
-    pub(crate) pair_tile: Tile,
-    pub(crate) sets: [Option<Meld>; 4],
-    pub(crate) len: u8,
 }

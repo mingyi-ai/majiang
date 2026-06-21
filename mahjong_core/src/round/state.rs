@@ -542,8 +542,10 @@ mod tests {
         let mut state = state_with_turn(Wind::East);
         // Exposed Pung(Dot5) + 1 extra Dot5 in concealed
         state.seats[0].hand = hand_with(&[Tile::Dot5]);
-        state.seats[0].hand.melds[0] =
-            Some(Meld::Pung(Triplet::new(Tile::Dot5, false)));
+        state.seats[0]
+            .hand
+            .melds
+            .push(Meld::Pung(Triplet::new(Tile::Dot5, false)));
 
         let options = state.self_action_options(Tile::Dot5);
         assert!(options.contains(&PlayerAction::AddedKong {
@@ -602,8 +604,10 @@ mod tests {
         let mut state = state_with_turn(Wind::East);
         // Exposed Pung(Bamboo5) + 1 extra Bamboo5 in concealed for the upgrade
         state.seats[0].hand = hand_with(&[Tile::Bamboo5]);
-        state.seats[0].hand.melds[0] =
-            Some(Meld::Pung(Triplet::new(Tile::Bamboo5, false)));
+        state.seats[0]
+            .hand
+            .melds
+            .push(Meld::Pung(Triplet::new(Tile::Bamboo5, false)));
 
         let phase = state.apply_self_action(PlayerAction::AddedKong {
             seat: Wind::East,
@@ -613,9 +617,10 @@ mod tests {
         // 1 tile consumed by the upgrade
         assert_eq!(state.seats[0].hand.concealed.count(Tile::Bamboo5), 0);
         // Meld is now a Kong
+        assert_eq!(state.seats[0].hand.melds.len(), 1);
         assert!(matches!(
             state.seats[0].hand.melds[0],
-            Some(Meld::Kong(q)) if q.tile() == Tile::Bamboo5
+            Meld::Kong(q) if q.tile() == Tile::Bamboo5
         ));
     }
 

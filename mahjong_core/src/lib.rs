@@ -1,3 +1,4 @@
+pub(crate) mod array_vec;
 pub mod engine;
 pub mod round;
 pub mod solver;

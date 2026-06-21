@@ -1,4 +1,5 @@
 use super::*;
+use crate::array_vec::ArrayVec;
 
 /// A specialized Bit Array for Mahjong.
 ///
@@ -86,6 +87,7 @@ impl BitTileCounts {
     // ── Static helpers operating on raw u64 rows ──
     // (Used by the hu solver which works on row copies.)
 
+    #[allow(dead_code)]
     pub(crate) fn add_to_row(row: &mut u64, shift: usize) {
         let slot_val = (*row >> shift) & TILE_COUNT_MASK;
         let bit_to_add = slot_val + 1;
@@ -113,7 +115,7 @@ impl BitTileCounts {
 #[derive(Default, Clone, Copy)]
 pub struct Hand {
     pub(crate) concealed: BitTileCounts,
-    pub(crate) melds: [Option<Meld>; 4],
+    pub(crate) melds: ArrayVec<Meld, 4>,
     pub(crate) flower_count: u8,
 }
 
@@ -583,6 +585,6 @@ mod tests {
     fn default_hand_is_empty() {
         let h = Hand::default();
         assert_eq!(h.flower_count, 0);
-        assert!(h.melds.iter().all(|m| m.is_none()));
+        assert!(h.melds.is_empty());
     }
 }

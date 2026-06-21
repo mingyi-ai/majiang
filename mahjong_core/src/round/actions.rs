@@ -80,10 +80,8 @@ impl Hand {
         self.concealed_tiles_are_hu()
     }
 
-    /// Delegates to `HuSolver::is_hu` for the concealed tiles.
-    /// Extracted so the solver type isn't imported at every call site.
     fn concealed_tiles_are_hu(&self) -> bool {
-        crate::solver::HuSolver::is_hu(&self.concealed)
+        crate::solver::is_hu(&self.concealed)
     }
 
     /// Returns tiles where the player has an exposed Pong meld
@@ -91,8 +89,8 @@ impl Hand {
     /// allowing an upgrade to an exposed Kong.
     pub(crate) fn added_kong_options(&self) -> Vec<Tile> {
         let mut tiles = Vec::new();
-        for meld in &self.melds {
-            if let Some(Meld::Pung(t)) = meld {
+        for meld in self.melds.iter() {
+            if let Meld::Pung(t) = meld {
                 let t = *t;
                 if !t.is_concealed() && self.concealed.count(t.tile()) >= 1 {
                     tiles.push(t.tile());
@@ -129,12 +127,7 @@ impl Hand {
             }
             _ => {}
         }
-        let slot = self
-            .melds
-            .iter_mut()
-            .find(|m| m.is_none())
-            .expect("No empty slot available for new meld");
-        *slot = Some(meld);
+        self.melds.push(meld);
     }
 
     /// Creates a Pong meld from discarded `tile`.
@@ -171,12 +164,11 @@ impl Hand {
     pub(crate) fn kong_from_pong(&mut self, tile: Tile) {
         let pong_index = self
             .melds
-            .iter()
-            .position(|m| matches!(m, Some(Meld::Pung(t)) if t.tile() == tile))
+            .position(|m| matches!(m, Meld::Pung(t) if t.tile() == tile))
             .expect("No existing Pong meld found for the specified tile");
 
         // The upgraded kong is always considered exposed (concealed = false)
-        self.melds[pong_index] = Some(Meld::Kong(Quad::new(tile, false)));
+        self.melds[pong_index] = Meld::Kong(Quad::new(tile, false));
 
         self.concealed.remove(tile, 1); // Remove the additional tile needed to upgrade the Pong to a Kong
     }
@@ -260,9 +252,7 @@ mod tests {
         h.push_meld(Meld::Pung(Triplet::new(Tile::East, false)));
         h.push_meld(Meld::Chow(Sequence::new(Tile::Character3, false)));
 
-        assert!(h.melds[0].is_some());
-        assert!(h.melds[1].is_some());
-        assert!(h.melds[2].is_none());
+        assert_eq!(h.melds.len(), 2);
     }
 
     // ── can_pong ──
@@ -404,8 +394,8 @@ mod tests {
         h.pong(Tile::East);
 
         // Melds: 1 slot filled with Pung(East, exposed)
-        assert!(h.melds[0].is_some());
-        let meld = h.melds[0].unwrap();
+        assert_eq!(h.melds.len(), 1);
+        let meld = &h.melds[0];
         if let Meld::Pung(t) = meld {
             assert_eq!(t.tile(), Tile::East);
             assert!(!t.is_concealed());
@@ -430,8 +420,8 @@ mod tests {
         h.chow(Tile::Character3, Tile::Character5);
 
         // Melds: 1 slot filled with Chow(3, exposed)
-        assert!(h.melds[0].is_some());
-        let meld = h.melds[0].unwrap();
+        assert_eq!(h.melds.len(), 1);
+        let meld = &h.melds[0];
         if let Meld::Chow(s) = meld {
             assert_eq!(s.start(), Tile::Character3);
             assert!(!s.is_concealed());
@@ -468,8 +458,8 @@ mod tests {
         ]);
         h.kong(Tile::Red, false); // exposed: 3 from hand + 1 from discard
 
-        assert!(h.melds[0].is_some());
-        let meld = h.melds[0].unwrap();
+        assert_eq!(h.melds.len(), 1);
+        let meld = &h.melds[0];
         if let Meld::Kong(q) = meld {
             assert_eq!(q.tile(), Tile::Red);
             assert!(!q.is_concealed());
@@ -488,8 +478,8 @@ mod tests {
             hand_with(&[Tile::White, Tile::White, Tile::White, Tile::White]);
         h.kong(Tile::White, true); // concealed: all 4 from hand
 
-        assert!(h.melds[0].is_some());
-        let meld = h.melds[0].unwrap();
+        assert_eq!(h.melds.len(), 1);
+        let meld = &h.melds[0];
         if let Meld::Kong(q) = meld {
             assert_eq!(q.tile(), Tile::White);
             assert!(q.is_concealed());
@@ -517,7 +507,7 @@ mod tests {
         h.kong_from_pong(Tile::Bamboo5);
 
         // Meld slot 0 should now be a Kong (not Pung)
-        let meld = h.melds[0].unwrap();
+        let meld = &h.melds[0];
         if let Meld::Kong(q) = meld {
             assert_eq!(q.tile(), Tile::Bamboo5);
             assert!(!q.is_concealed()); // upgraded kong is exposed
@@ -539,7 +529,7 @@ mod tests {
     // ── push_meld overflow ──
 
     #[test]
-    #[should_panic(expected = "No empty slot available for new meld")]
+    #[should_panic(expected = "ArrayVec::push: capacity 4 exceeded")]
     fn push_meld_panics_when_all_slots_full() {
         let mut h = Hand::default();
         h.push_meld(Meld::Pung(Triplet::new(Tile::East, false)));

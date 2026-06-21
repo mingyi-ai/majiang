@@ -1,6 +1,143 @@
-use super::fan_types::{
-    FanCandidate, FanExclusionSet, FanInstance, FanSolveResult, FanType,
-};
+// ═══════════════════════════════════════════════════════════════
+// Fan types — MCR scoring patterns
+// ═══════════════════════════════════════════════════════════════
+
+/// MCR fan types. Each variant maps to exactly one MCR scoring pattern.
+///
+/// Enum discriminants serve as stable identifiers for bitset exclusion masks.
+/// The full 81 MCR fans will be added incrementally; only the ones needed
+/// for initial development are defined here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u16)]
+pub enum FanType {
+    // ── 88-point fans ──
+    BigFourWinds = 1,
+    // ── 64-point fans ──
+    LittleFourWinds = 2,
+    AllHonors = 3,
+    // ── 32-point fans ──
+    AllTerminalsAndHonors = 4,
+    // ── 6-point fans ──
+    HalfFlush = 5,
+    AllPungs = 6,
+}
+
+impl FanType {
+    /// Base point value for this fan type (MCR standard).
+    pub fn points(self) -> u8 {
+        match self {
+            Self::BigFourWinds => 88,
+            Self::LittleFourWinds | Self::AllHonors => 64,
+            Self::AllTerminalsAndHonors => 32,
+            Self::HalfFlush | Self::AllPungs => 6,
+        }
+    }
+
+    /// Human-readable display name.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::BigFourWinds => "Big Four Winds",
+            Self::LittleFourWinds => "Little Four Winds",
+            Self::AllHonors => "All Honors",
+            Self::AllTerminalsAndHonors => "All Terminals and Honors",
+            Self::HalfFlush => "Half Flush",
+            Self::AllPungs => "All Pungs",
+        }
+    }
+
+    /// Bit index within a `FanExclusionSet` this fan occupies.
+    pub fn bit_index(self) -> usize {
+        self as u16 as usize
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Exclusion sets
+// ═══════════════════════════════════════════════════════════════
+
+/// A compact bitset for fan-exclusion checks.
+///
+/// Each bit corresponds to a `FanType` variant by its discriminant.
+/// MCR has at most 81 fans, so `u128` (128 bits) is sufficient.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FanExclusionSet(pub u128);
+
+impl FanExclusionSet {
+    pub fn is_set(self, fan: FanType) -> bool {
+        (self.0 >> fan.bit_index()) & 1 == 1
+    }
+
+    pub fn set(&mut self, fan: FanType) {
+        self.0 |= 1u128 << fan.bit_index();
+    }
+
+    /// Build the exclusion mask for a fan type: which fans it excludes.
+    pub fn for_fan(fan: FanType) -> Self {
+        match fan {
+            FanType::BigFourWinds => {
+                let mut s = Self::default();
+                s.set(FanType::AllPungs);
+                s.set(FanType::LittleFourWinds);
+                s
+            }
+            FanType::LittleFourWinds => {
+                let mut s = Self::default();
+                s.set(FanType::BigFourWinds);
+                s
+            }
+            FanType::AllHonors => {
+                let mut s = Self::default();
+                s.set(FanType::AllTerminalsAndHonors);
+                s
+            }
+            FanType::AllTerminalsAndHonors => {
+                let mut s = Self::default();
+                s.set(FanType::AllHonors);
+                s
+            }
+            FanType::HalfFlush => FanExclusionSet::default(),
+            FanType::AllPungs => FanExclusionSet::default(),
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Search types
+// ═══════════════════════════════════════════════════════════════
+
+/// A candidate fan instance extracted from a decomposition.
+/// The search algorithm selects a compatible subset of these.
+#[derive(Debug, Clone)]
+pub struct FanCandidate {
+    pub fan_type: FanType,
+    /// Bitmask identifying which of the 4 sets this fan uses.
+    /// Bit 0 = sets[0], bit 1 = sets[1], etc.
+    pub used_set_mask: u64,
+    /// Whether this fan's condition involves the pair.
+    pub uses_pair: bool,
+    pub score: u8,
+    pub excludes_mask: FanExclusionSet,
+}
+
+/// A fan instance selected in the final result.
+#[derive(Debug, Clone)]
+pub struct FanInstance {
+    pub fan_type: FanType,
+    pub used_set_mask: u64,
+    pub uses_pair: bool,
+    pub score: u8,
+}
+
+/// Result of a fan search.
+#[derive(Debug, Clone, Default)]
+pub struct FanSolveResult {
+    pub total_score: u16,
+    pub fans: Vec<FanInstance>,
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Search kernel — max-score compatible fan subset
+// ═══════════════════════════════════════════════════════════════
 
 // ── Internal types ──
 
@@ -218,7 +355,6 @@ pub fn solve_max_score(candidates: Vec<FanCandidate>) -> FanSolveResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::solver::fan::fan_types::FanType;
 
     fn candidate(
         fan_type: FanType,
@@ -244,7 +380,6 @@ mod tests {
 
     #[test]
     fn test_solve_max_score_single() {
-        // Big Four Winds (88) alone should score 88
         let candidates = vec![candidate(FanType::BigFourWinds, 0b1111, false)];
         let result = solve_max_score(candidates);
         assert_eq!(result.total_score, 88);
@@ -253,8 +388,6 @@ mod tests {
 
     #[test]
     fn test_solve_max_score_compatible() {
-        // Big Four Winds (88) + All Terminals and Honors (32) + Half Flush (6)
-        // These are all compatible (no exclusions between them, different sig keys)
         let candidates = vec![
             candidate(FanType::BigFourWinds, 0b0011, false),
             candidate(FanType::AllTerminalsAndHonors, 0b1111, true),
@@ -267,16 +400,11 @@ mod tests {
 
     #[test]
     fn test_solve_max_score_excludes() {
-        // Big Four Winds (88) excludes Little Four Winds (64) and All Pungs (6)
-        // Little Four Winds excludes Big Four Winds
-        // So picking Big Four Winds means we cannot also pick Little Four Winds.
-        // But we CAN pick Little Four Winds alone (64).
         let candidates = vec![
             candidate(FanType::BigFourWinds, 0b1111, false),
             candidate(FanType::LittleFourWinds, 0b0111, true),
         ];
         let result = solve_max_score(candidates);
-        // big-four 88 beats little-four 64, so result should be 88
         assert_eq!(result.total_score, 88);
         assert_eq!(result.fans.len(), 1);
         assert_eq!(result.fans[0].fan_type, FanType::BigFourWinds);
@@ -284,9 +412,6 @@ mod tests {
 
     #[test]
     fn test_solve_max_score_excludes_reverse() {
-        // AllHonors (64) excludes AllTerminalsAndHonors (32)
-        // AllTerminalsAndHonors excludes AllHonors
-        // Best score: 64 (AllHonors) is better than 32 (AllTerminalsAndHonors)
         let candidates = vec![
             candidate(FanType::AllTerminalsAndHonors, 0b1111, true),
             candidate(FanType::AllHonors, 0b1111, true),
@@ -299,7 +424,6 @@ mod tests {
 
     #[test]
     fn test_solve_max_score_non_repeat() {
-        // Two identical candidates should not both be selectable (same sig_key)
         let candidates = vec![
             candidate(FanType::AllPungs, 0b1111, true),
             candidate(FanType::AllPungs, 0b1111, true),
@@ -311,9 +435,6 @@ mod tests {
 
     #[test]
     fn test_solve_max_score_complex() {
-        // Big Four Winds (88, uses sets 0-3) + All Terminals (32, uses all sets + pair)
-        // + Half Flush (6, uses all sets + pair) + All Pungs (6, uses all sets + pair)
-        // Big Four Winds excludes All Pungs. So best is 88 + 32 + 6 = 126.
         let candidates = vec![
             candidate(FanType::BigFourWinds, 0b1111, false),
             candidate(FanType::AllTerminalsAndHonors, 0b1111, true),
