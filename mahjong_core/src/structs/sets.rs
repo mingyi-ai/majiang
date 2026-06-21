@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct Sequence {
     start: Tile,
     is_concealed: bool,
@@ -35,7 +35,7 @@ impl Sequence {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct Triplet {
     tile: Tile,
     is_concealed: bool,
@@ -62,7 +62,7 @@ impl Triplet {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct Quad {
     tile: Tile,
     is_concealed: bool,
@@ -89,7 +89,7 @@ impl Quad {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum Meld {
     Chow(Sequence),
     Pung(Triplet),
@@ -106,7 +106,7 @@ impl Meld {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct Pair {
     tile: Tile,
 }
