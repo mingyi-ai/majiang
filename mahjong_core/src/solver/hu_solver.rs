@@ -38,13 +38,6 @@ impl SuitDecomp {
         self.len as usize
     }
 
-    /// Copy melds into a `Vec<Meld>` (for the final `ConcealedDecomp`).
-    fn extend_vec(&self, target: &mut Vec<Meld>) {
-        for i in 0..self.len as usize {
-            target.push(self.melds[i].unwrap());
-        }
-    }
-
     /// Copy melds into another `SuitDecomp` (for combining suits).
     fn copy_into(&self, target: &mut SuitDecomp) {
         for i in 0..self.len as usize {
@@ -294,10 +287,21 @@ fn emit_solutions(
 ) {
     for combo in &combos {
         let total = honor_pungs.len() + combo.len();
-        let mut sets: Vec<Meld> = Vec::with_capacity(total);
-        sets.extend_from_slice(honor_pungs);
-        combo.extend_vec(&mut sets);
-        out.push(ConcealedDecomp { pair_tile, sets });
+        let mut sets = [None; 4];
+        let mut idx = 0;
+        for &pung in honor_pungs {
+            sets[idx] = Some(pung);
+            idx += 1;
+        }
+        for i in 0..combo.len() {
+            sets[idx] = combo.melds[i];
+            idx += 1;
+        }
+        out.push(ConcealedDecomp {
+            pair_tile,
+            sets,
+            len: total as u8,
+        });
     }
 }
 
@@ -320,16 +324,24 @@ fn try_each_pair_in_suit(
         };
         let pair_decomps = decompose_suit(row_minus_pair, suit);
 
+        let mut skip = false;
         for i in 0..3 {
             if i == suit {
+                // This pair position may fail but another might work.
                 if row_minus_pair != 0 && pair_decomps.is_empty() {
-                    return;
+                    skip = true;
+                    break;
                 }
                 continue;
             }
+            // Other suits' decomposability doesn't depend on pair position.
             if counts.rows[i] != 0 && suit_cache[i].is_empty() {
-                return;
+                skip = true;
+                break;
             }
+        }
+        if skip {
+            continue;
         }
         let combos = combine_suits_with(suit_cache, suit, &pair_decomps);
         emit_solutions(honor_pungs, pair_tile, combos, out);
@@ -633,7 +645,7 @@ mod tests {
         h.insert(Tile::East);
         let decomps = HuSolver::find_all_decompositions(&h);
         assert!(!decomps.is_empty());
-        assert_eq!(decomps[0].sets.len(), 0);
+        assert_eq!(decomps[0].len as usize, 0);
         assert_eq!(decomps[0].pair_tile, Tile::East);
 
         // 3 tiles → total=3, (3-2)/3 = 1/3, not integer → no decomposition.
