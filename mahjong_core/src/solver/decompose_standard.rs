@@ -1,10 +1,12 @@
 use crate::array_vec::ArrayVec;
 use crate::structs::{BitTileCounts, Meld, Sequence, Tile, Triplet};
 
-#[allow(dead_code)]
-pub(crate) struct StandardDecomp {
-    pub pair_tile: Tile,
-    pub melds: ArrayVec<Meld, 4>,
+/// Result of decomposing only the concealed tiles (no declared melds).
+/// Private to the standard decomposer; the orchestration layer combines
+/// these with declared melds to produce `Decomposition::Standard`.
+pub(crate) struct ConcealedDecompStd {
+    pub(crate) pair_tile: Tile,
+    pub(crate) melds: ArrayVec<Meld, 4>,
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -159,7 +161,7 @@ fn combine_suits_with(
 /// sets + a pair (standard pattern).
 pub(crate) fn decompose_standard(
     counts: &BitTileCounts,
-) -> Vec<StandardDecomp> {
+) -> Vec<ConcealedDecompStd> {
     let Some(honors) = parse_honors(counts.rows[3]) else {
         return vec![];
     };
@@ -208,7 +210,7 @@ fn emit_standard(
     honor_pungs: &[Meld],
     pair_tile: Tile,
     combos: SuitDecomps,
-    out: &mut Vec<StandardDecomp>,
+    out: &mut Vec<ConcealedDecompStd>,
 ) {
     for combo in &combos {
         let mut sets = ArrayVec::new();
@@ -218,7 +220,7 @@ fn emit_standard(
         for i in 0..combo.len() {
             sets.push(combo[i]);
         }
-        out.push(StandardDecomp {
+        out.push(ConcealedDecompStd {
             pair_tile,
             melds: sets,
         });
@@ -230,7 +232,7 @@ fn try_each_pair_in_suit(
     counts: &BitTileCounts,
     honor_pungs: &[Meld],
     suit_cache: &[SuitDecomps; 3],
-    out: &mut Vec<StandardDecomp>,
+    out: &mut Vec<ConcealedDecompStd>,
 ) {
     // Other suits' decomposability doesn't depend on pair position.
     for i in 0..3 {

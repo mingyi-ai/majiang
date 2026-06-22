@@ -72,6 +72,12 @@ impl BitTileCounts {
         slot_val.count_ones() as u8
     }
 
+    /// Total number of non-flower tiles stored (via LSB-fill popcount).
+    #[allow(dead_code)]
+    pub(crate) fn total_count(&self) -> usize {
+        self.rows.iter().map(|&r| r.count_ones() as usize).sum()
+    }
+
     pub(crate) fn position_to_tile(row: usize, shift: usize) -> Tile {
         debug_assert!(row < 4, "Row index out of bounds");
         Tile::from_repr(((row as u8) << 6) | (shift as u8))

@@ -81,7 +81,7 @@ impl Hand {
     }
 
     fn concealed_tiles_are_hu(&self) -> bool {
-        crate::solver::is_hu(&self.concealed)
+        crate::solver::is_hu(self).expect("solver: invalid hand state")
     }
 
     /// Returns tiles where the player has an exposed Pong meld

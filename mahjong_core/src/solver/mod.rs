@@ -2,50 +2,117 @@ mod decompose_special;
 mod decompose_standard;
 mod decomposition;
 pub(crate) mod fan;
+mod fan_context;
+pub(crate) mod rules;
+mod types;
 
 pub(crate) use decomposition::Decomposition;
-// No re-exports from fan/ until fan extractors exist.
+pub(crate) use fan_context::FanContext;
+pub(crate) use types::{FanCandidate, FanInstance, FanSolveResult, FanType};
 
-use crate::structs::{BitTileCounts, Pair};
+use crate::array_vec::ArrayVec;
+use crate::structs::{Hand, Pair};
 
-/// Check if the concealed tiles can form a winning hand (any pattern).
-///
-/// Returns `true` as soon as any valid decomposition is found.
-/// Does **not** check minimum fan score — that's the caller's responsibility.
-pub(crate) fn is_hu(counts: &BitTileCounts) -> bool {
-    // Standard decomposition (4 sets + 1 pair, or fewer with declared melds)
-    if !decompose_standard::decompose_standard(counts).is_empty() {
-        return true;
-    }
-    // Special hand patterns
-    if decompose_special::detect_seven_pairs(counts).is_some()
-        || decompose_special::detect_thirteen_orphans(counts).is_some()
-    {
-        return true;
-    }
-    false
+// ═══════════════════════════════════════════════════════════════
+// Solver error type
+// ═══════════════════════════════════════════════════════════════
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SolverError {
+    #[allow(dead_code)]
+    InvalidTileCount {
+        declared_melds: usize,
+        concealed: usize,
+        total: usize,
+        expected_concealed: usize,
+    },
+    TooManyMelds {
+        declared: usize,
+    },
 }
 
-#[allow(dead_code)]
-/// Enumerate all valid decompositions of the concealed tiles.
-pub(crate) fn decompose(counts: &BitTileCounts) -> Vec<Decomposition> {
-    let mut result: Vec<Decomposition> = Vec::new();
+// ═══════════════════════════════════════════════════════════════
+// Public API
+// ═══════════════════════════════════════════════════════════════
 
-    // Standard decompositions
-    for sd in decompose_standard::decompose_standard(counts) {
-        result.push(Decomposition::Standard {
-            pair: Pair::new(sd.pair_tile),
-            sets: sd.melds,
+/// Check if the full hand forms a winning hand.
+pub(crate) fn is_hu(hand: &Hand) -> Result<bool, SolverError> {
+    let n_declared = hand.melds.len();
+    if n_declared > 4 {
+        return Err(SolverError::TooManyMelds {
+            declared: n_declared,
         });
     }
 
-    // Special hand patterns
-    if let Some(d) = decompose_special::detect_seven_pairs(counts) {
-        result.push(d);
-    }
-    if let Some(d) = decompose_special::detect_thirteen_orphans(counts) {
-        result.push(d);
+    let n_sets_needed = 4 - n_declared;
+    for concealed in decompose_standard::decompose_standard(&hand.concealed) {
+        if concealed.melds.len() == n_sets_needed {
+            return Ok(true);
+        }
     }
 
-    result
+    if hand.melds.is_empty() {
+        if decompose_special::detect_seven_pairs(&hand.concealed).is_some()
+            || decompose_special::detect_thirteen_orphans(&hand.concealed)
+                .is_some()
+        {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
+}
+
+/// Enumerate all valid full-hand decompositions for fan scoring.
+#[allow(dead_code)]
+pub(crate) fn decompose_hand(
+    hand: &Hand,
+) -> Result<Vec<Decomposition>, SolverError> {
+    let n_declared = hand.melds.len();
+    if n_declared > 4 {
+        return Err(SolverError::TooManyMelds {
+            declared: n_declared,
+        });
+    }
+
+    let mut result: Vec<Decomposition> = Vec::new();
+
+    for concealed in decompose_standard::decompose_standard(&hand.concealed) {
+        let mut sets = ArrayVec::new();
+        for i in 0..hand.melds.len() {
+            sets.push(hand.melds[i]);
+        }
+        for i in 0..concealed.melds.len() {
+            sets.push(concealed.melds[i]);
+        }
+        result.push(Decomposition::Standard {
+            pair: Pair::new(concealed.pair_tile),
+            sets,
+        });
+    }
+
+    if hand.melds.is_empty() {
+        if let Some(d) = decompose_special::detect_seven_pairs(&hand.concealed)
+        {
+            result.push(d);
+        }
+        if let Some(d) =
+            decompose_special::detect_thirteen_orphans(&hand.concealed)
+        {
+            result.push(d);
+        }
+    }
+
+    Ok(result)
+}
+
+/// Score a fully decomposed hand using the rule registry and search kernel.
+///
+/// Returns all max-score solutions (multiple in case of ties).
+#[allow(dead_code)]
+pub(crate) fn score_decomposition(
+    decomp: &Decomposition,
+    ctx: &FanContext,
+) -> Vec<FanSolveResult> {
+    fan::score_hand(decomp, ctx)
 }
