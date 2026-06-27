@@ -254,7 +254,23 @@ pub fn score_hand(
         })
         .collect();
 
-    solve_max_score(candidates)
+    let mut results = solve_max_score(candidates);
+
+    // Chicken Hand (43): if the hand would score 0 points (excluding
+    // flower tiles), award 8 points.  The solver returns an empty
+    // result when no candidates are found, which is the 0-score case.
+    for r in &mut results {
+        if r.total_score == 0 && r.fans.is_empty() {
+            r.fans.push(FanInstance {
+                fan_type: FanType::ChickenHand,
+                used_set_mask: 0,
+                uses_pair: false,
+                score: 8,
+            });
+            r.total_score = 8;
+        }
+    }
+    results
 }
 
 #[cfg(test)]

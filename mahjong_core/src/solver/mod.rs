@@ -4,11 +4,15 @@ mod decomposition;
 pub(crate) mod fan;
 mod fan_context;
 pub(crate) mod rules;
+pub(crate) mod solve;
+#[cfg(test)]
+mod mcr_tests;
 mod types;
 
 pub(crate) use decomposition::Decomposition;
 pub(crate) use fan_context::FanContext;
-pub(crate) use types::{FanCandidate, FanInstance, FanSolveResult, FanType};
+pub use solve::solve_fan;
+pub(crate) use types::FanSolveResult;
 
 use crate::array_vec::ArrayVec;
 use crate::structs::{Hand, Pair};

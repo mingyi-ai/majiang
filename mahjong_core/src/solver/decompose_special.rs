@@ -1,17 +1,44 @@
-use crate::structs::BitTileCounts;
-
 use super::decomposition::Decomposition;
+use crate::structs::{BitTileCounts, Pair, Tile};
 
 /// Detect a Seven Pairs hand.
 ///
-/// Seven distinct pairs = 14 tiles where each tile appears exactly twice.
-/// The pair tiles must be distinct (no four-of-a-kind split into two pairs
-/// under standard MCR rules).
+/// Seven pairs = 14 tiles. Each tile may appear 2 times (one pair) or
+/// 4 times (two pairs of the same tile, per MCR rules).
 pub(crate) fn detect_seven_pairs(
-    _counts: &BitTileCounts,
+    counts: &BitTileCounts,
 ) -> Option<Decomposition> {
-    // TODO: implement
-    None
+    // Collect pairs. A tile with count 2 gives 1 pair; count 4 gives 2 pairs.
+    let mut pairs: Vec<Pair> = Vec::with_capacity(7);
+    for tile in Tile::iter() {
+        if tile.is_flower() { continue; }
+        let c = counts.count(tile);
+        match c {
+            0 => {}
+            2 => {
+                if pairs.len() >= 7 { return None; }
+                pairs.push(Pair::new(tile));
+            }
+            4 => {
+                if pairs.len() >= 6 { return None; }
+                pairs.push(Pair::new(tile));
+                pairs.push(Pair::new(tile));
+            }
+            _ => return None,
+        }
+    }
+    if pairs.len() != 7 { return None; }
+    Some(Decomposition::SevenPairs {
+        pairs: [
+            pairs[0],
+            pairs[1],
+            pairs[2],
+            pairs[3],
+            pairs[4],
+            pairs[5],
+            pairs[6],
+        ],
+    })
 }
 
 /// Detect a Thirteen Orphans hand.
@@ -20,11 +47,42 @@ pub(crate) fn detect_seven_pairs(
 /// each honor (7 total), plus a duplicate of any one of those 13 tiles
 /// to form the pair. Total: 14 tiles.
 pub(crate) fn detect_thirteen_orphans(
-    _counts: &BitTileCounts,
+    counts: &BitTileCounts,
 ) -> Option<Decomposition> {
-    // TODO: implement
-    None
+    // The 13 orphan tiles in order
+    const ORPHANS: [Tile; 13] = [
+        Tile::Character1, Tile::Character9,
+        Tile::Dot1, Tile::Dot9,
+        Tile::Bamboo1, Tile::Bamboo9,
+        Tile::East, Tile::South, Tile::West, Tile::North,
+        Tile::Red, Tile::Green, Tile::White,
+    ];
+    let mut pair_tile: Option<Tile> = None;
+    for &t in &ORPHANS {
+        let c = counts.count(t);
+        match c {
+            1 => {}
+            2 => {
+                if pair_tile.is_some() {
+                    return None; // only one tile can have count 2
+                }
+                pair_tile = Some(t);
+            }
+            _ => return None, // missing or too many
+        }
+    }
+    let pair_tile = pair_tile?; // must have exactly one pair
+    // Build tiles array: one of each orphan, with the pair tile appearing once more
+    let mut tiles = [Tile::Character1; 13];
+    let mut idx = 0;
+    for &t in &ORPHANS {
+        tiles[idx] = t;
+        idx += 1;
+    }
+    // Confirm total count = 14 (13 orphans + 1 duplicate for pair)
+    if counts.total_count() != 14 { return None; }
+    Some(Decomposition::ThirteenOrphans {
+        pair: Pair::new(pair_tile),
+        tiles,
+    })
 }
-
-// ── Knitted / honor-knitted patterns ──
-// TODO: implement when MCR rules for these are settled
