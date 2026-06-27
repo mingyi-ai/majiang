@@ -48,7 +48,11 @@ fn concealed_hand(melds: Vec<Meld>, pair_tile: Tile) -> Hand {
 /// Build a hand with some melds declared (exposed) and the rest
 /// in the concealed hand.
 #[allow(dead_code)]
-fn declared_hand(declared: Vec<Meld>, concealed: Vec<Meld>, pair_tile: Tile) -> Hand {
+fn declared_hand(
+    declared: Vec<Meld>,
+    concealed: Vec<Meld>,
+    pair_tile: Tile,
+) -> Hand {
     let mut hand = Hand::default();
     for m in declared {
         hand.melds.push(m);
@@ -101,7 +105,11 @@ fn assert_contains_fan(result: &FanSolveResult, fan: FanType) {
         "expected fan {:?} ({}) in result, got: {:?}",
         fan,
         fan.name(),
-        result.fans.iter().map(|f| f.fan_type.name()).collect::<Vec<_>>()
+        result
+            .fans
+            .iter()
+            .map(|f| f.fan_type.name())
+            .collect::<Vec<_>>()
     );
 }
 
@@ -119,10 +127,16 @@ fn assert_not_contains_fan(result: &FanSolveResult, fan: FanType) {
 #[allow(dead_code)]
 fn assert_total_score(result: &FanSolveResult, expected: u16) {
     assert_eq!(
-        result.total_score, expected,
+        result.total_score,
+        expected,
         "expected total score {}, got {}; fans: {:?}",
-        expected, result.total_score,
-        result.fans.iter().map(|f| f.fan_type.name()).collect::<Vec<_>>()
+        expected,
+        result.total_score,
+        result
+            .fans
+            .iter()
+            .map(|f| f.fan_type.name())
+            .collect::<Vec<_>>()
     );
 }
 
@@ -266,7 +280,9 @@ fn test_nine_gates() {
     // Need all in concealed hand for the decomposition engine
     let mut hand = Hand::default();
     // 1×3, 2,3,4,5,6,7,8, 9×4 = 14 tiles
-    for _ in 0..3 { hand.concealed.insert(Tile::Character1); }
+    for _ in 0..3 {
+        hand.concealed.insert(Tile::Character1);
+    }
     hand.concealed.insert(Tile::Character2);
     hand.concealed.insert(Tile::Character3);
     hand.concealed.insert(Tile::Character4);
@@ -274,7 +290,9 @@ fn test_nine_gates() {
     hand.concealed.insert(Tile::Character6);
     hand.concealed.insert(Tile::Character7);
     hand.concealed.insert(Tile::Character8);
-    for _ in 0..4 { hand.concealed.insert(Tile::Character9); }
+    for _ in 0..4 {
+        hand.concealed.insert(Tile::Character9);
+    }
     let ctx = default_context();
     let result = solve_fan(&hand, &ctx).unwrap().unwrap();
     assert_contains_fan(&result, FanType::NineGates);
@@ -341,9 +359,14 @@ fn test_seven_shifted_pairs() {
     let mut hand = Hand::default();
     for i in 2..=8 {
         let t = match i {
-            2 => Tile::Dot2, 3 => Tile::Dot3, 4 => Tile::Dot4,
-            5 => Tile::Dot5, 6 => Tile::Dot6, 7 => Tile::Dot7,
-            8 => Tile::Dot8, _ => unreachable!(),
+            2 => Tile::Dot2,
+            3 => Tile::Dot3,
+            4 => Tile::Dot4,
+            5 => Tile::Dot5,
+            6 => Tile::Dot6,
+            7 => Tile::Dot7,
+            8 => Tile::Dot8,
+            _ => unreachable!(),
         };
         hand.concealed.insert(t);
         hand.concealed.insert(t);
@@ -681,8 +704,13 @@ fn seven_pairs_hand(pair_tiles: &[Tile]) -> Hand {
 #[test]
 fn test_seven_pairs_example1() {
     let hand = seven_pairs_hand(&[
-        Tile::Dot7, Tile::Bamboo2, Tile::Character3, Tile::Red,
-        Tile::White, Tile::East, Tile::North,
+        Tile::Dot7,
+        Tile::Bamboo2,
+        Tile::Character3,
+        Tile::Red,
+        Tile::White,
+        Tile::East,
+        Tile::North,
     ]);
     let ctx = default_context();
     let result = solve_fan(&hand, &ctx).unwrap().unwrap();
@@ -696,8 +724,13 @@ fn test_seven_pairs_example2() {
     // We need Dot9 × 4 = two pairs. Manually insert 4 Dot9 tiles.
     let mut hand = Hand::default();
     for &t in &[
-        Tile::Dot1, Tile::Character1, Tile::Bamboo1,
-        Tile::Dot9, Tile::Dot9, Tile::Character9, Tile::Bamboo9,
+        Tile::Dot1,
+        Tile::Character1,
+        Tile::Bamboo1,
+        Tile::Dot9,
+        Tile::Dot9,
+        Tile::Character9,
+        Tile::Bamboo9,
     ] {
         hand.concealed.insert(t);
         hand.concealed.insert(t);
@@ -712,8 +745,13 @@ fn test_seven_pairs_example2() {
 #[test]
 fn test_seven_pairs_example3() {
     let hand = seven_pairs_hand(&[
-        Tile::East, Tile::South, Tile::West, Tile::North,
-        Tile::Red, Tile::Green, Tile::White,
+        Tile::East,
+        Tile::South,
+        Tile::West,
+        Tile::North,
+        Tile::Red,
+        Tile::Green,
+        Tile::White,
     ]);
     let ctx = default_context();
     let result = solve_fan(&hand, &ctx).unwrap().unwrap();
@@ -926,8 +964,12 @@ fn test_middle_tiles_example1() {
 fn test_middle_tiles_example2() {
     // Seven pairs of 4-5-6 across suits (7 distinct tiles all rank 4-6)
     let hand = seven_pairs_hand(&[
-        Tile::Character4, Tile::Character5, Tile::Character6,
-        Tile::Dot4, Tile::Dot5, Tile::Dot6,
+        Tile::Character4,
+        Tile::Character5,
+        Tile::Character6,
+        Tile::Dot4,
+        Tile::Dot5,
+        Tile::Dot6,
         Tile::Bamboo4,
     ]);
     let ctx = default_context();
@@ -1224,8 +1266,13 @@ fn test_upper_four_example2() {
 #[test]
 fn test_upper_four_example3() {
     let hand = seven_pairs_hand(&[
-        Tile::Bamboo6, Tile::Bamboo8, Tile::Character6,
-        Tile::Character7, Tile::Dot6, Tile::Dot8, Tile::Dot9,
+        Tile::Bamboo6,
+        Tile::Bamboo8,
+        Tile::Character6,
+        Tile::Character7,
+        Tile::Dot6,
+        Tile::Dot8,
+        Tile::Dot9,
     ]);
     let ctx = default_context();
     let result = solve_fan(&hand, &ctx).unwrap().unwrap();
@@ -2356,9 +2403,11 @@ fn test_non_winning_hand_returns_none() {
     // 4 declared melds, but concealed has only 1 tile (not a pair)
     let mut hand = Hand::default();
     hand.melds.push(Meld::Pung(Triplet::new(Tile::East, false)));
-    hand.melds.push(Meld::Pung(Triplet::new(Tile::South, false)));
+    hand.melds
+        .push(Meld::Pung(Triplet::new(Tile::South, false)));
     hand.melds.push(Meld::Pung(Triplet::new(Tile::West, false)));
-    hand.melds.push(Meld::Pung(Triplet::new(Tile::North, false)));
+    hand.melds
+        .push(Meld::Pung(Triplet::new(Tile::North, false)));
     hand.concealed.insert(Tile::Character1); // only 1 tile — not a pair
     let ctx = default_context();
     let result = solve_fan(&hand, &ctx).unwrap();

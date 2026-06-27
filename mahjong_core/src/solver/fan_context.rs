@@ -1,4 +1,4 @@
-use crate::structs::{Tile, TileType, Wind};
+use crate::structs::{Tile, Wind};
 
 /// How the winning tile was obtained.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

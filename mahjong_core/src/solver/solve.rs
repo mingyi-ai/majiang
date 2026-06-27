@@ -4,7 +4,7 @@
 
 use super::fan_context::FanContext;
 use super::types::FanSolveResult;
-use super::{decompose_hand, fan, SolverError};
+use super::{SolverError, decompose_hand, fan};
 use crate::structs::Hand;
 
 /// Find the highest-scoring fan result for a given hand and context.
@@ -13,7 +13,10 @@ use crate::structs::Hand;
 /// kernel, and returns the single best result (highest total score).
 /// Returns `None` if the hand is not a winning hand or cannot be
 /// decomposed.
-pub fn solve_fan(hand: &Hand, ctx: &FanContext) -> Result<Option<FanSolveResult>, SolverError> {
+pub fn solve_fan(
+    hand: &Hand,
+    ctx: &FanContext,
+) -> Result<Option<FanSolveResult>, SolverError> {
     let decompositions = decompose_hand(hand)?;
     if decompositions.is_empty() {
         return Ok(None);

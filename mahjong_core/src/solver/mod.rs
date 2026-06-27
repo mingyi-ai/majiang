@@ -3,11 +3,13 @@ mod decompose_standard;
 mod decomposition;
 pub(crate) mod fan;
 mod fan_context;
-pub(crate) mod rules;
-pub(crate) mod solve;
 #[cfg(test)]
 mod mcr_tests;
+pub(crate) mod rules;
+pub(crate) mod search;
+pub(crate) mod solve;
 mod types;
+mod view;
 
 pub(crate) use decomposition::Decomposition;
 pub(crate) use fan_context::FanContext;

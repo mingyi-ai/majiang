@@ -1,4 +1,5 @@
 use super::decomposition::Decomposition;
+use crate::array_vec::ArrayVec;
 use crate::structs::{BitTileCounts, Pair, Tile};
 
 /// Detect a Seven Pairs hand.
@@ -9,33 +10,36 @@ pub(crate) fn detect_seven_pairs(
     counts: &BitTileCounts,
 ) -> Option<Decomposition> {
     // Collect pairs. A tile with count 2 gives 1 pair; count 4 gives 2 pairs.
-    let mut pairs: Vec<Pair> = Vec::with_capacity(7);
+    let mut pairs: ArrayVec<Pair, 7> = ArrayVec::new();
     for tile in Tile::iter() {
-        if tile.is_flower() { continue; }
+        if tile.is_flower() {
+            continue;
+        }
         let c = counts.count(tile);
         match c {
             0 => {}
             2 => {
-                if pairs.len() >= 7 { return None; }
+                if pairs.len() >= 7 {
+                    return None;
+                }
                 pairs.push(Pair::new(tile));
             }
             4 => {
-                if pairs.len() >= 6 { return None; }
+                if pairs.len() >= 6 {
+                    return None;
+                }
                 pairs.push(Pair::new(tile));
                 pairs.push(Pair::new(tile));
             }
             _ => return None,
         }
     }
-    if pairs.len() != 7 { return None; }
+    if pairs.len() != 7 {
+        return None;
+    }
     Some(Decomposition::SevenPairs {
         pairs: [
-            pairs[0],
-            pairs[1],
-            pairs[2],
-            pairs[3],
-            pairs[4],
-            pairs[5],
+            pairs[0], pairs[1], pairs[2], pairs[3], pairs[4], pairs[5],
             pairs[6],
         ],
     })
@@ -51,11 +55,19 @@ pub(crate) fn detect_thirteen_orphans(
 ) -> Option<Decomposition> {
     // The 13 orphan tiles in order
     const ORPHANS: [Tile; 13] = [
-        Tile::Character1, Tile::Character9,
-        Tile::Dot1, Tile::Dot9,
-        Tile::Bamboo1, Tile::Bamboo9,
-        Tile::East, Tile::South, Tile::West, Tile::North,
-        Tile::Red, Tile::Green, Tile::White,
+        Tile::Character1,
+        Tile::Character9,
+        Tile::Dot1,
+        Tile::Dot9,
+        Tile::Bamboo1,
+        Tile::Bamboo9,
+        Tile::East,
+        Tile::South,
+        Tile::West,
+        Tile::North,
+        Tile::Red,
+        Tile::Green,
+        Tile::White,
     ];
     let mut pair_tile: Option<Tile> = None;
     for &t in &ORPHANS {
@@ -80,7 +92,9 @@ pub(crate) fn detect_thirteen_orphans(
         idx += 1;
     }
     // Confirm total count = 14 (13 orphans + 1 duplicate for pair)
-    if counts.total_count() != 14 { return None; }
+    if counts.total_count() != 14 {
+        return None;
+    }
     Some(Decomposition::ThirteenOrphans {
         pair: Pair::new(pair_tile),
         tiles,
