@@ -382,7 +382,7 @@ Each Flower Tile (Spring, Summer, Autumn, Winter, Plum, Orchid, Bamboo, Chrysant
 
 **2. Big Three Dragons**
 - Example 1: [[Red, Red, Red], [Green, Green, Green], [White, White, White], [Wan1, Wan1, Wan1], [Dot9, Dot9]], Combined with All Terminals and Honors, and One Voided Suit.
-- Example 2: [[Red, Red, Red], [Green, Green, Green], [White, White, White], [East, East, East], [White, White]], Combined with All Honors.
+- Example 2: [[Red, Red, Red], [Green, Green, Green], [White, White, White], [East, East, East], [West, West]], Combined with All Honors.
 - Example 3: [[Red, Red, Red], [Green, Green, Green], [White, White, White], [Bam4, Bam4], [Bam5, Bam5]], Combined with Half Flush.
 
 **3. All Green**
