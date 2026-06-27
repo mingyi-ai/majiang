@@ -111,20 +111,6 @@ pub(crate) fn seven_pairs(
 pub(crate) const SEVEN_PAIRS_EXCLUDES: &[FanType] =
     &[FanType::ConcealedHand, FanType::SingleWait];
 
-pub(crate) fn greater_honors_and_knitted_tiles(
-    profile: &HandProfile,
-    _ctx: &FanContext,
-) -> Vec<FanCandidate> {
-    match profile.kind {
-        ProfileKind::GreaterHonorsAndKnittedTiles => {
-            vec![cand(FanType::GreaterHonorsAndKnittedTiles, 0, true)]
-        }
-        _ => vec![],
-    }
-}
-pub(crate) const GREATER_HONORS_AND_KNITTED_TILES_EXCLUDES: &[FanType] =
-    &[FanType::AllTypes, FanType::ConcealedHand];
-
 pub(crate) fn all_even_pungs(
     profile: &HandProfile,
     _ctx: &FanContext,
@@ -254,7 +240,7 @@ pub(crate) fn upper_tiles(
         ProfileKind::SevenPairs => {
             if profile.pair_tiles.iter().all(|&t| {
                 let r = rank_of(t);
-                r >= 7 && r <= 9
+                (7..=9).contains(&r)
             }) {
                 vec![cand(FanType::UpperTiles, 0, true)]
             } else {
@@ -277,7 +263,7 @@ pub(crate) fn middle_tiles(
         ProfileKind::SevenPairs => {
             if profile.pair_tiles.iter().all(|&t| {
                 let r = rank_of(t);
-                r >= 4 && r <= 6
+                (4..=6).contains(&r)
             }) {
                 vec![cand(FanType::MiddleTiles, 0, true)]
             } else {
@@ -301,7 +287,7 @@ pub(crate) fn lower_tiles(
         ProfileKind::SevenPairs => {
             if profile.pair_tiles.iter().all(|&t| {
                 let r = rank_of(t);
-                r >= 1 && r <= 3
+                (1..=3).contains(&r)
             }) {
                 vec![cand(FanType::LowerTiles, 0, true)]
             } else {

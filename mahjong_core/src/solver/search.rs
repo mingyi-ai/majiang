@@ -145,8 +145,9 @@ pub fn solve_max_score(candidates: Vec<FanCandidate>) -> Vec<FanSolveResult> {
 
     loop {
         let mut picked = false;
-        for idx in pos..order.len() {
-            let inst_id = order[idx];
+        let mut scan = pos;
+        while scan < order.len() {
+            let inst_id = order[scan];
             let inst = &instances[inst_id];
 
             if !is_eligible(
@@ -156,11 +157,12 @@ pub fn solve_max_score(candidates: Vec<FanCandidate>) -> Vec<FanSolveResult> {
                 &used_sig_keys,
                 used_count,
             ) {
+                scan += 1;
                 continue;
             }
 
             stack.push(Frame {
-                resume_pos: idx + 1,
+                resume_pos: scan + 1,
                 max_allowed_score,
                 excluded_mask,
                 total_score,
@@ -176,7 +178,7 @@ pub fn solve_max_score(candidates: Vec<FanCandidate>) -> Vec<FanSolveResult> {
             max_allowed_score = inst.score;
             total_score += inst.score as u16;
 
-            pos = idx + 1;
+            pos = scan + 1;
             picked = true;
             break;
         }

@@ -84,19 +84,11 @@ pub(crate) fn detect_thirteen_orphans(
         }
     }
     let pair_tile = pair_tile?; // must have exactly one pair
-    // Build tiles array: one of each orphan, with the pair tile appearing once more
-    let mut tiles = [Tile::Character1; 13];
-    let mut idx = 0;
-    for &t in &ORPHANS {
-        tiles[idx] = t;
-        idx += 1;
-    }
     // Confirm total count = 14 (13 orphans + 1 duplicate for pair)
     if counts.total_count() != 14 {
         return None;
     }
     Some(Decomposition::ThirteenOrphans {
         pair: Pair::new(pair_tile),
-        tiles,
     })
 }

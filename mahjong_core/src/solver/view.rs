@@ -22,10 +22,6 @@ pub(crate) enum ProfileKind {
     Standard,
     SevenPairs,
     ThirteenOrphans,
-    GreaterHonorsAndKnittedTiles,
-    MediumHonorsAndKnittedTiles,
-    LesserHonorsAndKnittedTiles,
-    KnittedStraight,
 }
 
 // ── Meld info ──────────────────────────────────────────────────
@@ -51,8 +47,7 @@ pub(crate) struct MeldInfo {
     pub is_honor: bool,
     pub is_dragon: bool,
     pub is_wind: bool,
-    pub n_tiles: u8, // 3 (pung/chow) or 4 (kong)
-    /// The constituent tiles (n_tiles are valid, rest are sentinel).
+    /// The constituent tiles (first 3 valid for pung/chow, 4 for kong, rest sentinel).
     /// For chows: sequential tiles; for pungs/kongs: copies of the tile.
     pub tiles: [Tile; 4],
 }
@@ -79,24 +74,14 @@ pub(crate) struct HandProfile {
     pub melds: [MeldInfo; 4],
     /// How many melds are actually present (1-4 for Standard).
     pub n_sets: u8,
-    /// Pair information for Standard/ThirteenOrphans/KnittedStraight.
+    /// Pair information.
     pub pair: PairInfo,
     /// For SevenPairs: the 7 pair tiles.
     pub pair_tiles: [Tile; 7],
-    pub n_pairs: u8, // 7 for SevenPairs, 0 otherwise
-
-    // ── Summary bitmasks (Standard only) ──
-    /// Bitmask of suits present (bit 0=Characters, 1=Dots, 2=Bamboos).
-    pub suit_mask: u8,
     pub all_pungs: bool,
     pub all_chows: bool,
-    pub n_pungs: u8,
-    pub n_chows: u8,
     pub n_kongs: u8,
-    pub n_concealed: u8,
     pub has_honors: bool,
-    pub has_winds: bool,
-    pub has_dragons: bool,
 }
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -171,7 +156,7 @@ pub(crate) fn is_reversible_tile(t: Tile) -> bool {
 
 pub(crate) fn is_even_rank(t: Tile) -> bool {
     let r = rank_of(t);
-    r > 0 && r % 2 == 0
+    r > 0 && r.is_multiple_of(2)
 }
 
 // ── MeldInfo ───────────────────────────────────────────────────
@@ -180,8 +165,8 @@ fn chow_tiles(start: Tile) -> [Tile; 4] {
     let idx = start as u8;
     [
         start,
-        unsafe { std::mem::transmute(idx + 4) },
-        unsafe { std::mem::transmute(idx + 8) },
+        unsafe { std::mem::transmute::<u8, Tile>(idx + 4) },
+        unsafe { std::mem::transmute::<u8, Tile>(idx + 8) },
         start,
     ] // sentinel
 }
@@ -202,7 +187,6 @@ pub(crate) fn meld_info(m: &Meld) -> MeldInfo {
                 is_honor: s == 3,
                 is_dragon: is_dragon_tile(tile),
                 is_wind: is_wind_tile(tile),
-                n_tiles: 3,
                 tiles: [tile, tile, tile, tile],
             }
         }
@@ -220,7 +204,6 @@ pub(crate) fn meld_info(m: &Meld) -> MeldInfo {
                 is_honor: false,
                 is_dragon: false,
                 is_wind: false,
-                n_tiles: 3,
                 tiles: chow_tiles(start),
             }
         }
@@ -238,13 +221,13 @@ pub(crate) fn meld_info(m: &Meld) -> MeldInfo {
                 is_honor: s == 3,
                 is_dragon: is_dragon_tile(tile),
                 is_wind: is_wind_tile(tile),
-                n_tiles: 4,
                 tiles: [tile, tile, tile, tile],
             }
         }
     }
 }
 
+/// Build PairInfo from a Pair reference.
 pub(crate) fn pair_info(p: &Pair) -> PairInfo {
     let tile = p.tile();
     let r = rank_of(tile);
@@ -272,7 +255,6 @@ const EMPTY_MELD: MeldInfo = MeldInfo {
     is_honor: false,
     is_dragon: false,
     is_wind: false,
-    n_tiles: 0,
     tiles: [Tile::Character1; 4],
 };
 
@@ -289,26 +271,16 @@ const EMPTY_PAIR: PairInfo = PairInfo {
 fn profile_standard(sets: &ArrayVec<Meld, 4>, pair: &Pair) -> HandProfile {
     let n = sets.len() as u8;
     let mut melds = [EMPTY_MELD; 4];
-    let mut suit_mask: u8 = 0;
-    let mut n_pungs: u8 = 0;
-    let mut n_chows: u8 = 0;
     let mut n_kongs: u8 = 0;
-    let mut n_concealed: u8 = 0;
     let mut has_honors = false;
 
     for (i, m) in sets.iter().enumerate() {
         let info = meld_info(m);
-        suit_mask |= 1 << info.suit;
         if info.is_honor {
             has_honors = true;
         }
-        match info.kind {
-            MeldKind::Pung => n_pungs += 1,
-            MeldKind::Chow => n_chows += 1,
-            MeldKind::Kong => n_kongs += 1,
-        }
-        if info.is_concealed {
-            n_concealed += 1;
+        if matches!(info.kind, MeldKind::Kong) {
+            n_kongs += 1;
         }
         melds[i] = info;
     }
@@ -318,35 +290,34 @@ fn profile_standard(sets: &ArrayVec<Meld, 4>, pair: &Pair) -> HandProfile {
         has_honors = true;
     }
 
+    let all_pungs = n > 0
+        && melds
+            .iter()
+            .take(n as usize)
+            .all(|m| matches!(m.kind, MeldKind::Pung | MeldKind::Kong));
+    let all_chows = n > 0
+        && melds
+            .iter()
+            .take(n as usize)
+            .all(|m| matches!(m.kind, MeldKind::Chow));
+
     HandProfile {
         kind: ProfileKind::Standard,
         melds,
         n_sets: n,
         pair: pi,
         pair_tiles: [Tile::Character1; 7],
-        n_pairs: 0,
-        suit_mask: suit_mask & 0b111,
-        all_pungs: n > 0 && n_pungs + n_kongs == n,
-        all_chows: n > 0 && n_chows == n,
-        n_pungs,
-        n_chows,
+        all_pungs,
+        all_chows,
         n_kongs,
-        n_concealed,
         has_honors,
-        has_winds: melds.iter().take(n as usize).any(|m| m.is_wind)
-            || pi.is_wind,
-        has_dragons: melds.iter().take(n as usize).any(|m| m.is_dragon)
-            || pi.is_dragon,
     }
 }
 
 fn profile_seven_pairs(pairs: &[Pair; 7]) -> HandProfile {
-    let mut suit_mask: u8 = 0;
     let mut pair_tiles = [Tile::Character1; 7];
     for (i, p) in pairs.iter().enumerate() {
-        let t = p.tile();
-        pair_tiles[i] = t;
-        suit_mask |= 1 << suit_of(t);
+        pair_tiles[i] = p.tile();
     }
 
     HandProfile {
@@ -355,17 +326,10 @@ fn profile_seven_pairs(pairs: &[Pair; 7]) -> HandProfile {
         n_sets: 0,
         pair: EMPTY_PAIR,
         pair_tiles,
-        n_pairs: 7,
-        suit_mask: suit_mask & 0b111,
         all_pungs: false,
         all_chows: false,
-        n_pungs: 0,
-        n_chows: 0,
         n_kongs: 0,
-        n_concealed: 7,
         has_honors: pairs.iter().any(|p| is_honor_tile(p.tile())),
-        has_winds: pairs.iter().any(|p| is_wind_tile(p.tile())),
-        has_dragons: pairs.iter().any(|p| is_dragon_tile(p.tile())),
     }
 }
 
@@ -376,17 +340,10 @@ fn empty_standard() -> HandProfile {
         n_sets: 0,
         pair: EMPTY_PAIR,
         pair_tiles: [Tile::Character1; 7],
-        n_pairs: 0,
-        suit_mask: 0,
         all_pungs: false,
         all_chows: false,
-        n_pungs: 0,
-        n_chows: 0,
         n_kongs: 0,
-        n_concealed: 0,
         has_honors: false,
-        has_winds: false,
-        has_dragons: false,
     }
 }
 
@@ -399,29 +356,9 @@ impl HandProfile {
                 profile_standard(sets, pair)
             }
             Decomposition::SevenPairs { pairs } => profile_seven_pairs(pairs),
-            Decomposition::ThirteenOrphans { .. } => {
+            Decomposition::ThirteenOrphans { pair } => {
                 let mut p = empty_standard();
                 p.kind = ProfileKind::ThirteenOrphans;
-                p
-            }
-            Decomposition::GreaterHonorsAndKnittedTiles { .. } => {
-                let mut p = empty_standard();
-                p.kind = ProfileKind::GreaterHonorsAndKnittedTiles;
-                p
-            }
-            Decomposition::MediumHonorsAndKnittedTiles { .. } => {
-                let mut p = empty_standard();
-                p.kind = ProfileKind::MediumHonorsAndKnittedTiles;
-                p
-            }
-            Decomposition::LesserHonorsAndKnittedTiles { .. } => {
-                let mut p = empty_standard();
-                p.kind = ProfileKind::LesserHonorsAndKnittedTiles;
-                p
-            }
-            Decomposition::KnittedStraight { pair, .. } => {
-                let mut p = empty_standard();
-                p.kind = ProfileKind::KnittedStraight;
                 p.pair = pair_info(pair);
                 p
             }
@@ -430,10 +367,6 @@ impl HandProfile {
 
     pub(crate) fn is_standard(&self) -> bool {
         self.kind == ProfileKind::Standard
-    }
-
-    pub(crate) fn is_seven_pairs(&self) -> bool {
-        self.kind == ProfileKind::SevenPairs
     }
 
     /// Check whether all tiles in this profile are suit tiles

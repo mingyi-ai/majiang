@@ -6,7 +6,6 @@ use std::mem::MaybeUninit;
 /// `T: Copy` enables safe `MaybeUninit` handling — uninitialized slots
 /// are never read because the API constrains access to indices `0..len`.
 #[derive(Clone, Copy)]
-#[allow(dead_code)]
 pub(crate) struct ArrayVec<T: Copy, const N: usize> {
     data: [MaybeUninit<T>; N],
     len: usize,
@@ -31,12 +30,6 @@ impl<T: Copy, const N: usize> ArrayVec<T, N> {
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.len == 0
-    }
-
-    /// Remaining capacity.
-    #[inline]
-    pub fn remaining(&self) -> usize {
-        N - self.len
     }
 
     /// Push one element at the end. Panics if full.
@@ -82,18 +75,6 @@ impl<T: Copy, const N: usize> ArrayVec<T, N> {
         (0..self.len).map(|i| unsafe { self.data[i].assume_init_ref() })
     }
 
-    /// Iterate over mutable references.
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
-        let len = self.len;
-        let ptr = &mut self.data as *mut [MaybeUninit<T>; N];
-        (0..len).map(move |i| unsafe { (*ptr)[i].assume_init_mut() })
-    }
-
-    /// Remove all elements.
-    pub fn clear(&mut self) {
-        self.len = 0;
-    }
-
     /// Copy all elements from `other` into `self`, extending.
     pub fn extend_from(&mut self, other: &Self) {
         for i in 0..other.len() {
@@ -105,34 +86,6 @@ impl<T: Copy, const N: usize> ArrayVec<T, N> {
     pub fn position(&self, mut pred: impl FnMut(&T) -> bool) -> Option<usize> {
         (0..self.len)
             .find(|&i| pred(unsafe { self.data[i].assume_init_ref() }))
-    }
-
-    /// Convert to a slice of initialized elements.
-    /// The slice is valid for the lifetime of the borrow.
-    pub fn as_slice(&self) -> &[T] {
-        if self.len == 0 {
-            &[]
-        } else {
-            unsafe {
-                std::slice::from_raw_parts(
-                    self.data.as_ptr() as *const T,
-                    self.len,
-                )
-            }
-        }
-    }
-
-    pub fn as_mut_slice(&mut self) -> &mut [T] {
-        if self.len == 0 {
-            &mut []
-        } else {
-            unsafe {
-                std::slice::from_raw_parts_mut(
-                    self.data.as_mut_ptr() as *mut T,
-                    self.len,
-                )
-            }
-        }
     }
 }
 

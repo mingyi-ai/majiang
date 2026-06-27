@@ -106,10 +106,6 @@ const ALL_RULES: &[RuleEntry] = &[
         excludes: mid_high::SEVEN_PAIRS_EXCLUDES,
     },
     RuleEntry {
-        check: mid_high::greater_honors_and_knitted_tiles,
-        excludes: mid_high::GREATER_HONORS_AND_KNITTED_TILES_EXCLUDES,
-    },
-    RuleEntry {
         check: mid_high::all_even_pungs,
         excludes: mid_high::ALL_EVEN_PUNGS_EXCLUDES,
     },
@@ -163,14 +159,6 @@ const ALL_RULES: &[RuleEntry] = &[
         excludes: mid_high::THREE_CONCEALED_PUNGS_EXCLUDES,
     },
     // ── 12 points ──
-    RuleEntry {
-        check: mid_low::lesser_honors_and_knitted_tiles,
-        excludes: mid_low::LESSER_HONORS_AND_KNITTED_TILES_EXCLUDES,
-    },
-    RuleEntry {
-        check: mid_low::knitted_straight,
-        excludes: mid_low::KNITTED_STRAIGHT_EXCLUDES,
-    },
     RuleEntry {
         check: mid_low::upper_four,
         excludes: mid_low::UPPER_FOUR_EXCLUDES,

@@ -235,8 +235,8 @@ fn try_each_pair_in_suit(
     out: &mut Vec<ConcealedDecompStd>,
 ) {
     // Other suits' decomposability doesn't depend on pair position.
-    for i in 0..3 {
-        if i != suit && counts.rows[i] != 0 && suit_cache[i].is_empty() {
+    for (i, cache) in suit_cache.iter().enumerate() {
+        if i != suit && counts.rows[i] != 0 && cache.is_empty() {
             return;
         }
     }

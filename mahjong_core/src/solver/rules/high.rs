@@ -23,7 +23,7 @@ pub(crate) fn big_four_winds(
         return vec![];
     }
     let n = profile.n_sets as usize;
-    if profile.melds[..n].iter().all(|m| is_pung_or_kong(m)) {
+    if profile.melds[..n].iter().all(is_pung_or_kong) {
         let winds = [Tile::East, Tile::South, Tile::West, Tile::North];
         let tiles: Vec<Tile> =
             profile.melds[..n].iter().map(|m| m.tile).collect();
@@ -107,7 +107,7 @@ pub(crate) fn nine_gates(
     }
     if !profile.melds[..n]
         .iter()
-        .all(|m| m.suit == s && m.is_honor == false)
+        .all(|m| m.suit == s && !m.is_honor)
     {
         return vec![];
     }

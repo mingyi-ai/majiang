@@ -289,11 +289,6 @@ pub struct FanExclusionSet(pub u128);
 
 impl FanExclusionSet {
     #[inline]
-    pub fn is_set(self, fan: FanType) -> bool {
-        (self.0 >> fan.bit_index()) & 1 == 1
-    }
-
-    #[inline]
     pub fn set(&mut self, fan: FanType) {
         self.0 |= 1u128 << fan.bit_index();
     }
