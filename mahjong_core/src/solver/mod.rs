@@ -1,17 +1,15 @@
 // mod decompose_special;
 // mod decompose_standard;
-mod decomposition;
 // pub(crate) mod rules;
 // pub(crate) mod search;
 // pub(crate) mod solve;
 mod types;
 // mod view;
 
-pub(crate) use decomposition::Decomposition;
-
 use crate::{
+    array_vec::ArrayVec,
     solver::types::FanType,
-    structs::{Hand, Tile, Wind},
+    structs::{Hand, Meld, Pair, Tile, Wind},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -60,11 +58,6 @@ pub(crate) struct DynamicFanContext {
     pub(crate) is_rob_kong: bool,
 }
 
-pub(crate) struct DecomposeResult {
-    pub(crate) decompositions: Decomposition,
-    pub(crate) wait_type: WaitType,
-}
-
 /// A selected fan instance in the result.
 #[derive(Debug, Clone)]
 pub struct FanInstance {
@@ -77,8 +70,13 @@ pub struct FanInstance {
 /// Result of a fan search.
 #[derive(Debug, Clone, Default)]
 pub struct FanResult {
-    pub total_score: u16,
     pub fans: Vec<FanInstance>,
+}
+
+impl FanResult {
+    pub fn total_score(&self) -> u8 {
+        self.fans.iter().map(|f| f.score).sum::<u8>()
+    }
 }
 
 pub(crate) fn solve_fan(
@@ -86,36 +84,75 @@ pub(crate) fn solve_fan(
     static_ctx: &StaticFanContext,
     dynamic_ctx: &DynamicFanContext,
 ) -> Result<Vec<FanResult>, SolverError> {
-    let decompositions = decompose_hand(hand)?;
-    let mut results: Vec<FanResult> = Vec::new();
-    for decomp in decompositions.iter() {
-        let mut scored = score_decomposition(decomp, static_ctx, dynamic_ctx);
-        results.append(&mut scored);
-    }
+    let results = decompose_hand(hand)?.flat_map(|decomp| {
+        score_decomposition(&decomp, static_ctx, dynamic_ctx)
+    });
     Ok(keep_highest_score(results))
 }
 
-fn keep_highest_score(_results: Vec<FanResult>) -> Vec<FanResult> {
-    unimplemented!()
+fn keep_highest_score(
+    results: impl Iterator<Item = FanResult>,
+) -> Vec<FanResult> {
+    results
+        .fold(None, |best: Option<(Vec<FanResult>, u8)>, candidate| {
+            let score = candidate.total_score();
+            match best {
+                None => Some((vec![candidate], score)),
+                Some((mut best_fans, best_score)) => {
+                    match score.cmp(&best_score) {
+                        std::cmp::Ordering::Greater => {
+                            Some((vec![candidate], score))
+                        }
+                        std::cmp::Ordering::Equal => {
+                            best_fans.push(candidate);
+                            Some((best_fans, best_score))
+                        }
+                        std::cmp::Ordering::Less => {
+                            Some((best_fans, best_score))
+                        }
+                    }
+                }
+            }
+        })
+        .map_or(Vec::new(), |(fans, _)| fans)
 }
 
 /// Compatibility stub for the old `is_hu` function.
 pub(crate) fn is_hu(hand: &Hand) -> Result<bool, SolverError> {
-    let decompositions = decompose_hand(hand)?;
-    Ok(!decompositions.is_empty())
+    let mut decompositions = decompose_hand(hand)?;
+    Ok(decompositions.next().is_some())
+}
+
+pub(crate) enum Decomposition {
+    /// 4 sets + 1 pair (or fewer sets with declared melds).
+    Standard {
+        pair: Pair,
+        sets: ArrayVec<Meld, 4>,
+    },
+    SevenPairs {
+        pairs: [Pair; 7],
+    },
+    ThirteenOrphans {
+        pair: Pair,
+    },
+    // Knitted tiles...
+}
+
+pub(crate) struct DecomposeResult {
+    pub(crate) decompositions: Decomposition,
+    pub(crate) wait_type: WaitType,
 }
 
 /// Enumerate all valid full-hand decompositions for fan scoring.
-pub(crate) fn decompose_hand(
+fn decompose_hand(
     _hand: &Hand,
-) -> Result<Vec<DecomposeResult>, SolverError> {
-    unimplemented!()
+) -> Result<impl Iterator<Item = DecomposeResult>, SolverError> {
+    Ok(std::iter::empty())
 }
 
 /// Score a fully decomposed hand using the rule registry and search kernel.
-///
 /// Returns all max-score solutions (multiple in case of ties).
-pub(crate) fn score_decomposition(
+fn score_decomposition(
     _decomp: &DecomposeResult,
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
