@@ -1,8 +1,7 @@
 // mod decompose_special;
 // mod decompose_standard;
 mod rules;
-// pub(crate) mod search;
-// pub(crate) mod solve;
+// pub(crate) mod fan_solver;
 // mod view;
 
 use crate::{

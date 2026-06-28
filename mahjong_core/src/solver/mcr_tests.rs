@@ -1,3 +1,5 @@
+// Each test should go to where rule is registered.
+
 // ═══════════════════════════════════════════════════════════════
 // MCR Fan Rule Tests
 //
