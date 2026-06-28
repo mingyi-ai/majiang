@@ -6,11 +6,11 @@
 
 use std::collections::HashSet;
 
-use super::super::fan_context::{FanContext, WaitType, WinMethod};
 use super::super::types::{FanCandidate, FanType};
 use super::super::view::{
     HandProfile, MeldKind, ProfileKind, is_reversible_tile, rank_of,
 };
+use super::super::{FanContext, WaitType, WinMethod};
 use super::helpers::{all_in_range, cand, is_chow, is_pung_or_kong};
 
 // ── 12 points ──────────────────────────────────────────────────
@@ -20,9 +20,9 @@ pub(crate) fn lesser_honors_and_knitted_tiles(
     _ctx: &FanContext,
 ) -> Vec<FanCandidate> {
     match profile.kind {
-        ProfileKind::LesserHonorsAndKnittedTiles => {
-            vec![cand(FanType::LesserHonorsAndKnittedTiles, 0, true)]
-        }
+        // ProfileKind::LesserHonorsAndKnittedTiles => {
+        //     vec![cand(FanType::LesserHonorsAndKnittedTiles, 0, true)]
+        // }
         _ => vec![],
     }
 }
@@ -34,9 +34,9 @@ pub(crate) fn knitted_straight(
     _ctx: &FanContext,
 ) -> Vec<FanCandidate> {
     match profile.kind {
-        ProfileKind::KnittedStraight => {
-            vec![cand(FanType::KnittedStraight, 0, true)]
-        }
+        // ProfileKind::KnittedStraight => {
+        //     vec![cand(FanType::KnittedStraight, 0, true)]
+        // }
         _ => vec![],
     }
 }

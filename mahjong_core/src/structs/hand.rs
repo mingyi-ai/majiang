@@ -73,7 +73,7 @@ impl BitTileCounts {
     }
 
     /// Total number of non-flower tiles stored (via LSB-fill popcount).
-    #[allow(dead_code)]
+    
     pub(crate) fn total_count(&self) -> usize {
         self.rows.iter().map(|&r| r.count_ones() as usize).sum()
     }
@@ -93,7 +93,7 @@ impl BitTileCounts {
     // ── Static helpers operating on raw u64 rows ──
     // (Used by the hu solver which works on row copies.)
 
-    #[allow(dead_code)]
+    
     pub(crate) fn add_to_row(row: &mut u64, shift: usize) {
         let slot_val = (*row >> shift) & TILE_COUNT_MASK;
         let bit_to_add = slot_val + 1;

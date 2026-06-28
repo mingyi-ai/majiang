@@ -30,6 +30,15 @@ impl Wind {
     pub fn iter() -> impl Iterator<Item = Wind> {
         [Wind::East, Wind::South, Wind::West, Wind::North].into_iter()
     }
+
+    pub(crate) fn to_tile(self) -> Tile {
+        match self {
+            Wind::East => Tile::East,
+            Wind::South => Tile::South,
+            Wind::West => Tile::West,
+            Wind::North => Tile::North,
+        }
+    }
 }
 
 pub(crate) const WALL_SIZE: usize =

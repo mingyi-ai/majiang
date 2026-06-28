@@ -6,12 +6,12 @@
 
 use std::collections::HashSet;
 
-use super::super::fan_context::{FanContext, WaitType, WinMethod};
 use super::super::types::{FanCandidate, FanType};
 use super::super::view::{
     HandProfile, MeldKind, is_honor_tile, is_terminal_tile, is_wind_tile,
     rank_of,
 };
+use super::super::{FanContext, WaitType, WinMethod};
 use super::helpers::{cand, is_chow, is_melded_kong, is_pung_or_kong};
 
 // ── 4 points ──────────────────────────────────────────────────
@@ -118,7 +118,7 @@ pub(crate) fn prevalent_wind(
         return vec![];
     }
     let n = profile.n_sets as usize;
-    let target = ctx.prevalent_wind_to_tile();
+    let target = ctx.prevalent_wind.to_tile();
     for (i, m) in profile.melds[..n].iter().enumerate() {
         if matches!(m.kind, MeldKind::Pung) && m.tile == target {
             return vec![cand(FanType::PrevalentWind, 1 << i, false)];
@@ -136,7 +136,7 @@ pub(crate) fn seat_wind(
         return vec![];
     }
     let n = profile.n_sets as usize;
-    let target = ctx.seat_wind_to_tile();
+    let target = ctx.seat_wind.to_tile();
     for (i, m) in profile.melds[..n].iter().enumerate() {
         if matches!(m.kind, MeldKind::Pung) && m.tile == target {
             return vec![cand(FanType::SeatWind, 1 << i, false)];

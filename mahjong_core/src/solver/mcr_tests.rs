@@ -23,9 +23,9 @@
 //       is implemented, the corresponding assertions start passing.
 // ═══════════════════════════════════════════════════════════════
 
-use super::fan_context::{FanContext, WaitType, WinMethod};
 use super::solve::solve_fan;
-use super::types::{FanSolveResult, FanType};
+use super::types::FanType;
+use super::{FanContext, FanSolveResult, WaitType, WinMethod};
 use crate::structs::{Hand, Meld, Quad, Sequence, Tile, Triplet, Wind};
 
 // ── Test helpers ──────────────────────────────────────────────────
@@ -47,7 +47,7 @@ fn concealed_hand(melds: Vec<Meld>, pair_tile: Tile) -> Hand {
 
 /// Build a hand with some melds declared (exposed) and the rest
 /// in the concealed hand.
-#[allow(dead_code)]
+
 fn declared_hand(
     declared: Vec<Meld>,
     concealed: Vec<Meld>,
@@ -124,7 +124,7 @@ fn assert_not_contains_fan(result: &FanSolveResult, fan: FanType) {
 }
 
 /// Helper: check total score.
-#[allow(dead_code)]
+
 fn assert_total_score(result: &FanSolveResult, expected: u16) {
     assert_eq!(
         result.total_score,

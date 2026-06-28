@@ -4,7 +4,7 @@
 
 #![allow(non_snake_case)]
 
-use super::super::fan_context::FanContext;
+use super::super::FanContext;
 use super::super::types::{FanCandidate, FanType};
 use super::super::view::{
     HandProfile, MeldKind, ProfileKind, is_green_tile, is_terminal_tile,

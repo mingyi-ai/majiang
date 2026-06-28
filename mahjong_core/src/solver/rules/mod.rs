@@ -12,7 +12,7 @@ mod low;
 mod mid_high;
 mod mid_low;
 
-use super::fan_context::FanContext;
+use super::FanContext;
 use super::types::{FanCandidate, FanType};
 use super::view::HandProfile;
 

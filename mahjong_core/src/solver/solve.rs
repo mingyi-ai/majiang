@@ -2,9 +2,9 @@
 // solve_fan — highest-scoring fan result for a winning hand
 // ═══════════════════════════════════════════════════════════════
 
-use super::fan_context::FanContext;
-use super::types::FanSolveResult;
-use super::{SolverError, decompose_hand, fan};
+use super::FanContext;
+use super::FanSolveResult;
+use super::{SolverError, decompose_hand, score_decomposition};
 use crate::structs::Hand;
 
 /// Find the highest-scoring fan result for a given hand and context.
@@ -24,7 +24,7 @@ pub fn solve_fan(
 
     let mut best: Option<FanSolveResult> = None;
     for decomp in &decompositions {
-        let results = fan::score_hand(decomp, ctx);
+        let results = score_decomposition(decomp, ctx);
         for r in results {
             let is_better = match &best {
                 None => true,

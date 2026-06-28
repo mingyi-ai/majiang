@@ -1,124 +1,124 @@
-mod decompose_special;
-mod decompose_standard;
+// mod decompose_special;
+// mod decompose_standard;
 mod decomposition;
-pub(crate) mod fan;
-mod fan_context;
-#[cfg(test)]
-mod mcr_tests;
-pub(crate) mod rules;
-pub(crate) mod search;
-pub(crate) mod solve;
+// pub(crate) mod rules;
+// pub(crate) mod search;
+// pub(crate) mod solve;
 mod types;
-mod view;
+// mod view;
 
 pub(crate) use decomposition::Decomposition;
-pub(crate) use fan_context::FanContext;
-pub use solve::solve_fan;
-pub(crate) use types::FanSolveResult;
 
-use crate::array_vec::ArrayVec;
-use crate::structs::{Hand, Pair};
-
-// ═══════════════════════════════════════════════════════════════
-// Solver error type
-// ═══════════════════════════════════════════════════════════════
+use crate::{
+    solver::types::FanType,
+    structs::{Hand, Tile, Wind},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SolverError {
-    #[allow(dead_code)]
-    InvalidTileCount {
-        declared_melds: usize,
-        concealed: usize,
-        total: usize,
-        expected_concealed: usize,
-    },
-    TooManyMelds {
-        declared: usize,
-    },
+    InvalidHand,
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Public API
-// ═══════════════════════════════════════════════════════════════
+/// How the winning tile was obtained.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum WinMethod {
+    SelfDraw,
+    Discard,
+}
 
-/// Check if the full hand forms a winning hand.
+/// The type of wait before the winning tile.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum WaitType {
+    /// None / not applicable (multiple winning tiles possible).
+    Multiple,
+    /// Waiting for 3 to complete 1-2-3, or 7 to complete 7-8-9.
+    Edge,
+    /// Waiting for a tile in the middle of a chow (e.g., 4 for 3-4-5).
+    Closed,
+    /// Waiting for a single tile to complete the pair.
+    Single,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct StaticFanContext {
+    pub(crate) seat_wind: Wind,
+    pub(crate) prevalent_wind: Wind,
+    pub(crate) win_method: WinMethod,
+    pub(crate) winning_tile: Tile,
+    pub(crate) flower_count: u8,
+    pub(crate) is_concealed: bool,
+    pub(crate) is_fully_concealed: bool,
+    pub(crate) is_last_tile_draw: bool,
+    pub(crate) is_last_tile_claim: bool,
+    pub(crate) is_last_tile_of_kind: bool,
+    pub(crate) wall_remaining: usize,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct DynamicFanContext {
+    pub(crate) is_kong_replacement: bool,
+    pub(crate) is_rob_kong: bool,
+}
+
+pub(crate) struct DecomposeResult {
+    pub(crate) decompositions: Decomposition,
+    pub(crate) wait_type: WaitType,
+}
+
+/// A selected fan instance in the result.
+#[derive(Debug, Clone)]
+pub struct FanInstance {
+    pub fan_type: FanType,
+    pub score: u8,
+    pub(crate) used_set_mask: u64,
+    pub(crate) uses_pair: bool,
+}
+
+/// Result of a fan search.
+#[derive(Debug, Clone, Default)]
+pub struct FanResult {
+    pub total_score: u16,
+    pub fans: Vec<FanInstance>,
+}
+
+pub(crate) fn solve_fan(
+    hand: &Hand,
+    static_ctx: &StaticFanContext,
+    dynamic_ctx: &DynamicFanContext,
+) -> Result<Vec<FanResult>, SolverError> {
+    let decompositions = decompose_hand(hand)?;
+    let mut results: Vec<FanResult> = Vec::new();
+    for decomp in decompositions.iter() {
+        let mut scored = score_decomposition(decomp, static_ctx, dynamic_ctx);
+        results.append(&mut scored);
+    }
+    Ok(keep_highest_score(results))
+}
+
+fn keep_highest_score(_results: Vec<FanResult>) -> Vec<FanResult> {
+    unimplemented!()
+}
+
+/// Compatibility stub for the old `is_hu` function.
 pub(crate) fn is_hu(hand: &Hand) -> Result<bool, SolverError> {
-    let n_declared = hand.melds.len();
-    if n_declared > 4 {
-        return Err(SolverError::TooManyMelds {
-            declared: n_declared,
-        });
-    }
-
-    let n_sets_needed = 4 - n_declared;
-    for concealed in decompose_standard::decompose_standard(&hand.concealed) {
-        if concealed.melds.len() == n_sets_needed {
-            return Ok(true);
-        }
-    }
-
-    if hand.melds.is_empty() {
-        if decompose_special::detect_seven_pairs(&hand.concealed).is_some()
-            || decompose_special::detect_thirteen_orphans(&hand.concealed)
-                .is_some()
-        {
-            return Ok(true);
-        }
-    }
-
-    Ok(false)
+    let decompositions = decompose_hand(hand)?;
+    Ok(!decompositions.is_empty())
 }
 
 /// Enumerate all valid full-hand decompositions for fan scoring.
-#[allow(dead_code)]
 pub(crate) fn decompose_hand(
-    hand: &Hand,
-) -> Result<Vec<Decomposition>, SolverError> {
-    let n_declared = hand.melds.len();
-    if n_declared > 4 {
-        return Err(SolverError::TooManyMelds {
-            declared: n_declared,
-        });
-    }
-
-    let mut result: Vec<Decomposition> = Vec::new();
-
-    for concealed in decompose_standard::decompose_standard(&hand.concealed) {
-        let mut sets = ArrayVec::new();
-        for i in 0..hand.melds.len() {
-            sets.push(hand.melds[i]);
-        }
-        for i in 0..concealed.melds.len() {
-            sets.push(concealed.melds[i]);
-        }
-        result.push(Decomposition::Standard {
-            pair: Pair::new(concealed.pair_tile),
-            sets,
-        });
-    }
-
-    if hand.melds.is_empty() {
-        if let Some(d) = decompose_special::detect_seven_pairs(&hand.concealed)
-        {
-            result.push(d);
-        }
-        if let Some(d) =
-            decompose_special::detect_thirteen_orphans(&hand.concealed)
-        {
-            result.push(d);
-        }
-    }
-
-    Ok(result)
+    _hand: &Hand,
+) -> Result<Vec<DecomposeResult>, SolverError> {
+    unimplemented!()
 }
 
 /// Score a fully decomposed hand using the rule registry and search kernel.
 ///
 /// Returns all max-score solutions (multiple in case of ties).
-#[allow(dead_code)]
 pub(crate) fn score_decomposition(
-    decomp: &Decomposition,
-    ctx: &FanContext,
-) -> Vec<FanSolveResult> {
-    fan::score_hand(decomp, ctx)
+    _decomp: &DecomposeResult,
+    _static_ctx: &StaticFanContext,
+    _dynamic_ctx: &DynamicFanContext,
+) -> Vec<FanResult> {
+    unimplemented!()
 }

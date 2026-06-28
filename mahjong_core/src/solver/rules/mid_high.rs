@@ -6,7 +6,7 @@
 
 use std::collections::HashSet;
 
-use super::super::fan_context::FanContext;
+use super::super::FanContext;
 use super::super::types::{FanCandidate, FanType};
 use super::super::view::{
     HandProfile, MeldKind, ProfileKind, is_even_rank, is_honor_tile,

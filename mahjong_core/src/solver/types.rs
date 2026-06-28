@@ -307,19 +307,3 @@ pub struct FanCandidate {
     pub score: u8,
     pub excludes_mask: FanExclusionSet,
 }
-
-/// A selected fan instance in the result.
-#[derive(Debug, Clone)]
-pub struct FanInstance {
-    pub fan_type: FanType,
-    pub used_set_mask: u64,
-    pub uses_pair: bool,
-    pub score: u8,
-}
-
-/// Result of a fan search.
-#[derive(Debug, Clone, Default)]
-pub struct FanSolveResult {
-    pub total_score: u16,
-    pub fans: Vec<FanInstance>,
-}
