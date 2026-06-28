@@ -1,14 +1,13 @@
 // mod decompose_special;
 // mod decompose_standard;
-// pub(crate) mod rules;
+mod rules;
 // pub(crate) mod search;
 // pub(crate) mod solve;
-mod types;
 // mod view;
 
 use crate::{
     array_vec::ArrayVec,
-    solver::types::FanType,
+    solver::rules::FanType,
     structs::{Hand, Meld, Pair, Tile, Wind},
 };
 
