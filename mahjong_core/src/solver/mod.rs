@@ -1,13 +1,13 @@
-// mod decompose_special;
-// mod decompose_standard;
+mod decompose_special;
+mod decompose_standard;
 mod rules;
-// pub(crate) mod fan_solver;
+pub(crate) mod fan_solver;
 // mod view;
 
 use crate::{
     array_vec::ArrayVec,
     solver::rules::FanType,
-    structs::{Hand, Meld, Pair, Tile, Wind},
+    structs::{BitTileCounts, Hand, Meld, Pair, Tile, Wind},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -141,19 +141,92 @@ pub(crate) struct DecomposeResult {
     pub(crate) wait_type: WaitType,
 }
 
+use crate::solver::rules::HandProfile;
+
 /// Enumerate all valid full-hand decompositions for fan scoring.
 fn decompose_hand(
-    _hand: &Hand,
+    hand: &Hand,
 ) -> Result<impl Iterator<Item = DecomposeResult>, SolverError> {
-    Ok(std::iter::empty())
+    let counts = &hand.concealed;
+    let declared = &hand.melds;
+    let n_declared = declared.len();
+
+    // ── Standard decompositions (concealed tiles only) ──
+    let standard = decompose_standard::decompose_standard(counts);
+
+    // ── Special hand detection ──
+    let seven_pairs = decompose_special::detect_seven_pairs(counts);
+    let thirteen_orphans = decompose_special::detect_thirteen_orphans(counts);
+
+    // ── Build DecomposeResult iterator ──
+    let mut results: Vec<DecomposeResult> = Vec::new();
+
+    for concealed in &standard {
+        let mut sets = ArrayVec::new();
+        // Declared melds come first (lower indices for used_set_mask)
+        for i in 0..n_declared {
+            sets.push(declared[i]);
+        }
+        for i in 0..concealed.melds.len() {
+            sets.push(concealed.melds[i]);
+        }
+        let pair = Pair::new(concealed.pair_tile);
+        results.push(DecomposeResult {
+            decompositions: Decomposition::Standard { pair, sets },
+            wait_type: stub_wait_type(),
+        });
+    }
+
+    if let Some(decomp) = seven_pairs {
+        results.push(DecomposeResult {
+            decompositions: decomp,
+            wait_type: stub_wait_type(),
+        });
+    }
+    if let Some(decomp) = thirteen_orphans {
+        results.push(DecomposeResult {
+            decompositions: decomp,
+            wait_type: stub_wait_type(),
+        });
+    }
+
+    Ok(results.into_iter())
+}
+
+/// Stub for wait-type computation. Returns Multiple until
+/// the wait-type detection algorithm is implemented.
+fn stub_wait_type() -> WaitType {
+    WaitType::Multiple
 }
 
 /// Score a fully decomposed hand using the rule registry and search kernel.
 /// Returns all max-score solutions (multiple in case of ties).
 fn score_decomposition(
-    _decomp: &DecomposeResult,
-    _static_ctx: &StaticFanContext,
-    _dynamic_ctx: &DynamicFanContext,
+    decomp: &DecomposeResult,
+    static_ctx: &StaticFanContext,
+    dynamic_ctx: &DynamicFanContext,
 ) -> Vec<FanResult> {
-    unimplemented!()
+    // Build HandProfile for rule checking
+    let profile = HandProfile::from_decomposition(&decomp.decompositions);
+
+    // Run all rules via the macro-generated registry
+    let candidates = rules::check_all(
+        &profile,
+        static_ctx,
+        dynamic_ctx,
+        decomp.wait_type,
+    );
+
+    // Run the search kernel to find the max-score compatible subset
+    let solve_results = fan_solver::solve_max_score(candidates);
+
+    // Convert FanSolveResult → FanResult
+    solve_results
+        .into_iter()
+        .map(|sr| {
+            FanResult {
+                fans: sr.fans,
+            }
+        })
+        .collect()
 }

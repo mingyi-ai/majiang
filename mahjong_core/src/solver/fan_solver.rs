@@ -11,9 +11,17 @@
 // Returns all solutions achieving the maximum score (ties).
 // ═══════════════════════════════════════════════════════════════
 
-use super::types::{
-    FanCandidate, FanExclusionSet, FanInstance, FanSolveResult, FanType,
+use crate::solver::{
+    rules::{FanCandidate, FanExclusionSet, FanType},
+    FanInstance,
 };
+
+/// Result of a max-score search: total score + collected fan instances.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct FanSolveResult {
+    pub(crate) total_score: u16,
+    pub(crate) fans: Vec<FanInstance>,
+}
 
 /// Compact signature for deduplication: two candidates with the same
 /// (fan_type, uses_pair, used_set_mask) are considered the same fan
@@ -260,17 +268,17 @@ mod tests {
         let mut excludes_mask = FanExclusionSet::default();
         match fan_type {
             FanType::BigFourWinds => {
-                excludes_mask.set(FanType::AllPungs);
-                excludes_mask.set(FanType::LittleFourWinds);
+                excludes_mask.set_bit(FanType::AllPungs.bit_index());
+                excludes_mask.set_bit(FanType::LittleFourWinds.bit_index());
             }
             FanType::LittleFourWinds => {
-                excludes_mask.set(FanType::BigFourWinds);
+                excludes_mask.set_bit(FanType::BigFourWinds.bit_index());
             }
             FanType::AllHonors => {
-                excludes_mask.set(FanType::AllTerminalsAndHonors);
+                excludes_mask.set_bit(FanType::AllTerminalsAndHonors.bit_index());
             }
             FanType::AllTerminalsAndHonors => {
-                excludes_mask.set(FanType::AllHonors);
+                excludes_mask.set_bit(FanType::AllHonors.bit_index());
             }
             _ => {}
         }
