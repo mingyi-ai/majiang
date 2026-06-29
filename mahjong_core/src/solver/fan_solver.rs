@@ -12,8 +12,8 @@
 // ═══════════════════════════════════════════════════════════════
 
 use crate::solver::{
-    rules::{FanCandidate, FanExclusionSet, FanType},
     FanInstance,
+    rules::{FanCandidate, FanExclusionSet, FanType},
 };
 
 /// Result of a max-score search: total score + collected fan instances.
@@ -275,7 +275,8 @@ mod tests {
                 excludes_mask.set_bit(FanType::BigFourWinds.bit_index());
             }
             FanType::AllHonors => {
-                excludes_mask.set_bit(FanType::AllTerminalsAndHonors.bit_index());
+                excludes_mask
+                    .set_bit(FanType::AllTerminalsAndHonors.bit_index());
             }
             FanType::AllTerminalsAndHonors => {
                 excludes_mask.set_bit(FanType::AllHonors.bit_index());

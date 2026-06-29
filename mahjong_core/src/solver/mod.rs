@@ -1,13 +1,12 @@
 mod decompose_special;
 mod decompose_standard;
-mod rules;
 pub(crate) mod fan_solver;
-// mod view;
+mod rules;
 
 use crate::{
     array_vec::ArrayVec,
     solver::rules::FanType,
-    structs::{BitTileCounts, Hand, Meld, Pair, Tile, Wind},
+    structs::{Hand, Meld, Pair, Tile, Wind},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -17,14 +16,14 @@ pub enum SolverError {
 
 /// How the winning tile was obtained.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum WinMethod {
+pub enum WinMethod {
     SelfDraw,
     Discard,
 }
 
 /// The type of wait before the winning tile.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum WaitType {
+pub enum WaitType {
     /// None / not applicable (multiple winning tiles possible).
     Multiple,
     /// Waiting for 3 to complete 1-2-3, or 7 to complete 7-8-9.
@@ -36,24 +35,24 @@ pub(crate) enum WaitType {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct StaticFanContext {
-    pub(crate) seat_wind: Wind,
-    pub(crate) prevalent_wind: Wind,
-    pub(crate) win_method: WinMethod,
-    pub(crate) winning_tile: Tile,
-    pub(crate) flower_count: u8,
-    pub(crate) is_concealed: bool,
-    pub(crate) is_fully_concealed: bool,
-    pub(crate) is_last_tile_draw: bool,
-    pub(crate) is_last_tile_claim: bool,
-    pub(crate) is_last_tile_of_kind: bool,
-    pub(crate) wall_remaining: usize,
+pub struct StaticFanContext {
+    pub seat_wind: Wind,
+    pub prevalent_wind: Wind,
+    pub win_method: WinMethod,
+    pub winning_tile: Tile,
+    pub flower_count: u8,
+    pub is_concealed: bool,
+    pub is_fully_concealed: bool,
+    pub is_last_tile_draw: bool,
+    pub is_last_tile_claim: bool,
+    pub is_last_tile_of_kind: bool,
+    pub wall_remaining: usize,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct DynamicFanContext {
-    pub(crate) is_kong_replacement: bool,
-    pub(crate) is_rob_kong: bool,
+pub struct DynamicFanContext {
+    pub is_kong_replacement: bool,
+    pub is_rob_kong: bool,
 }
 
 /// A selected fan instance in the result.
@@ -61,8 +60,8 @@ pub(crate) struct DynamicFanContext {
 pub struct FanInstance {
     pub fan_type: FanType,
     pub score: u8,
-    pub(crate) used_set_mask: u64,
-    pub(crate) uses_pair: bool,
+    pub used_set_mask: u64,
+    pub uses_pair: bool,
 }
 
 /// Result of a fan search.
@@ -77,7 +76,7 @@ impl FanResult {
     }
 }
 
-pub(crate) fn solve_fan(
+pub fn solve_fan(
     hand: &Hand,
     static_ctx: &StaticFanContext,
     dynamic_ctx: &DynamicFanContext,
@@ -210,12 +209,8 @@ fn score_decomposition(
     let profile = HandProfile::from_decomposition(&decomp.decompositions);
 
     // Run all rules via the macro-generated registry
-    let candidates = rules::check_all(
-        &profile,
-        static_ctx,
-        dynamic_ctx,
-        decomp.wait_type,
-    );
+    let candidates =
+        rules::check_all(&profile, static_ctx, dynamic_ctx, decomp.wait_type);
 
     // Run the search kernel to find the max-score compatible subset
     let solve_results = fan_solver::solve_max_score(candidates);
@@ -223,10 +218,6 @@ fn score_decomposition(
     // Convert FanSolveResult → FanResult
     solve_results
         .into_iter()
-        .map(|sr| {
-            FanResult {
-                fans: sr.fans,
-            }
-        })
+        .map(|sr| FanResult { fans: sr.fans })
         .collect()
 }

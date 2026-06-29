@@ -10,8 +10,8 @@
 #![cfg(test)]
 
 use crate::solver::{
-    rules::FanType, DynamicFanContext, FanResult, StaticFanContext, WaitType,
-    WinMethod, solve_fan,
+    DynamicFanContext, FanResult, StaticFanContext, WaitType, WinMethod,
+    rules::FanType, solve_fan,
 };
 use crate::structs::{Hand, Meld, Tile, Wind};
 
@@ -120,7 +120,6 @@ pub(crate) fn assert_not_contains_fan(result: &FanResult, fan: FanType) {
     );
 }
 
-
 /// Build a hand from an array of 7 pair tiles (each inserted twice).
 pub(crate) fn seven_pairs_hand(pair_tiles: &[Tile]) -> Hand {
     let mut hand = Hand::default();
@@ -135,9 +134,11 @@ pub(crate) fn seven_pairs_hand(pair_tiles: &[Tile]) -> Hand {
 pub(crate) fn assert_total_score(result: &FanResult, expected: u8) {
     let actual = result.total_score();
     assert_eq!(
-        actual, expected,
+        actual,
+        expected,
         "expected total score {}, got {}; fans: {:?}",
-        expected, actual,
+        expected,
+        actual,
         result
             .fans
             .iter()

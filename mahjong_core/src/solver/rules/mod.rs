@@ -8,8 +8,12 @@ use super::{DynamicFanContext, StaticFanContext, WaitType};
 // ============================================================================
 
 /// Signature for a rule check function.
-pub(crate) type RuleFn =
-    fn(&HandProfile, &StaticFanContext, &DynamicFanContext, WaitType) -> Vec<FanCandidate>;
+pub(crate) type RuleFn = fn(
+    &HandProfile,
+    &StaticFanContext,
+    &DynamicFanContext,
+    WaitType,
+) -> Vec<FanCandidate>;
 
 // ============================================================================
 // Macro: mcr_rules! — single-source rule registry for all 81 MCR fan types
@@ -549,7 +553,7 @@ pub(crate) fn empty_rule(
 
 mod helpers;
 mod high;
+mod low;
 mod mid_high;
 mod mid_low;
-mod low;
 mod test_helpers;

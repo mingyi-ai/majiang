@@ -5,19 +5,20 @@
 #![allow(non_snake_case)]
 
 use super::super::{DynamicFanContext, StaticFanContext, WaitType};
-use super::{FanCandidate, FanType};
+use super::helpers::{cand, is_chow, is_pung_or_kong};
 use super::profile::{
     HandProfile, MeldKind, ProfileKind, is_green_tile, is_terminal_tile,
     rank_of, suit_of,
 };
-use super::helpers::{cand, is_chow, is_pung_or_kong};
+use super::{FanCandidate, FanType};
 use crate::structs::Tile;
 
 // ── 88 points ──────────────────────────────────────────────────
 
 pub(crate) fn big_four_winds(
     profile: &HandProfile,
-    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _static_ctx: &StaticFanContext,
+    _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     if !profile.is_standard() || profile.n_sets != 4 {
@@ -44,7 +45,8 @@ pub(crate) const BIG_FOUR_WINDS_EXCLUDES: &[FanType] = &[
 
 pub(crate) fn big_three_dragons(
     profile: &HandProfile,
-    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _static_ctx: &StaticFanContext,
+    _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     if !profile.is_standard() {
@@ -66,7 +68,8 @@ pub(crate) const BIG_THREE_DRAGONS_EXCLUDES: &[FanType] =
 
 pub(crate) fn all_green(
     profile: &HandProfile,
-    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _static_ctx: &StaticFanContext,
+    _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     match profile.kind {
@@ -98,7 +101,8 @@ pub(crate) const ALL_GREEN_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn nine_gates(
     profile: &HandProfile,
-    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _static_ctx: &StaticFanContext,
+    _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     if !profile.is_standard() {
@@ -159,7 +163,8 @@ pub(crate) const NINE_GATES_EXCLUDES: &[FanType] = &[
 
 pub(crate) fn four_kongs(
     profile: &HandProfile,
-    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _static_ctx: &StaticFanContext,
+    _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     if !profile.is_standard() {
@@ -174,7 +179,8 @@ pub(crate) const FOUR_KONGS_EXCLUDES: &[FanType] = &[FanType::SingleWait];
 
 pub(crate) fn seven_shifted_pairs(
     profile: &HandProfile,
-    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _static_ctx: &StaticFanContext,
+    _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     match profile.kind {
@@ -201,7 +207,8 @@ pub(crate) const SEVEN_SHIFTED_PAIRS_EXCLUDES: &[FanType] = &[
 
 pub(crate) fn thirteen_orphans(
     profile: &HandProfile,
-    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _static_ctx: &StaticFanContext,
+    _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     if profile.kind == ProfileKind::ThirteenOrphans {
@@ -220,7 +227,8 @@ pub(crate) const THIRTEEN_ORPHANS_EXCLUDES: &[FanType] = &[
 
 pub(crate) fn all_terminals(
     profile: &HandProfile,
-    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _static_ctx: &StaticFanContext,
+    _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     match profile.kind {
@@ -255,7 +263,8 @@ pub(crate) const ALL_TERMINALS_EXCLUDES: &[FanType] = &[
 
 pub(crate) fn little_four_winds(
     profile: &HandProfile,
-    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _static_ctx: &StaticFanContext,
+    _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     if !profile.is_standard() {
@@ -290,7 +299,8 @@ pub(crate) const LITTLE_FOUR_WINDS_EXCLUDES: &[FanType] =
 
 pub(crate) fn little_three_dragons(
     profile: &HandProfile,
-    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _static_ctx: &StaticFanContext,
+    _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     if !profile.is_standard() {
@@ -320,7 +330,8 @@ pub(crate) const LITTLE_THREE_DRAGONS_EXCLUDES: &[FanType] =
 
 pub(crate) fn all_honors(
     profile: &HandProfile,
-    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _static_ctx: &StaticFanContext,
+    _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     if !profile.is_standard() {
@@ -341,7 +352,8 @@ pub(crate) const ALL_HONORS_EXCLUDES: &[FanType] = &[
 
 pub(crate) fn four_concealed_pungs(
     profile: &HandProfile,
-    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _static_ctx: &StaticFanContext,
+    _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     if !profile.is_standard() || profile.n_sets != 4 {
@@ -362,7 +374,8 @@ pub(crate) const FOUR_CONCEALED_PUNGS_EXCLUDES: &[FanType] =
 
 pub(crate) fn pure_terminal_chows(
     profile: &HandProfile,
-    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _static_ctx: &StaticFanContext,
+    _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     if !profile.is_standard() || profile.n_sets != 4 {
@@ -399,7 +412,8 @@ pub(crate) const PURE_TERMINAL_CHOWS_EXCLUDES: &[FanType] = &[
 
 pub(crate) fn quadruple_chow(
     profile: &HandProfile,
-    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _static_ctx: &StaticFanContext,
+    _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     if !profile.is_standard() {
@@ -446,7 +460,8 @@ pub(crate) const QUADRUPLE_CHOW_EXCLUDES: &[FanType] = &[
 
 pub(crate) fn four_pure_shifted_pungs(
     profile: &HandProfile,
-    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _static_ctx: &StaticFanContext,
+    _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     if !profile.is_standard() {
@@ -497,458 +512,457 @@ pub(crate) const FOUR_PURE_SHIFTED_PUNGS_EXCLUDES: &[FanType] =
 #[cfg(test)]
 #[allow(non_snake_case)]
 mod tests {
-    use super::super::test_helpers::*;
     use super::super::FanType;
-    use crate::structs::{Hand, Meld, Quad, Sequence, Tile, Triplet, Wind};
+    use super::super::test_helpers::*;
     use crate::solver::{DynamicFanContext, StaticFanContext, WinMethod};
+    use crate::structs::{Hand, Meld, Quad, Sequence, Tile, Triplet, Wind};
 
-#[test]
-fn test_big_four_winds_example1() {
-    let hand = concealed_hand(
-        vec![
-            Meld::Pung(Triplet::new(Tile::East, true)),
-            Meld::Pung(Triplet::new(Tile::South, true)),
-            Meld::Pung(Triplet::new(Tile::West, true)),
-            Meld::Pung(Triplet::new(Tile::North, true)),
-        ],
-        Tile::Red,
-    );
-    let results = solve_default(&hand);
-    let result = results.first().unwrap();
-    assert_contains_fan(&result, FanType::BigFourWinds);
-    assert_not_contains_fan(&result, FanType::AllPungs);
-    assert_not_contains_fan(&result, FanType::BigThreeWinds);
-    // Combined with All Honors (stub — will pass when implemented)
-    // assert_contains_fan(&result, FanType::AllHonors);
-}
+    #[test]
+    fn test_big_four_winds_example1() {
+        let hand = concealed_hand(
+            vec![
+                Meld::Pung(Triplet::new(Tile::East, true)),
+                Meld::Pung(Triplet::new(Tile::South, true)),
+                Meld::Pung(Triplet::new(Tile::West, true)),
+                Meld::Pung(Triplet::new(Tile::North, true)),
+            ],
+            Tile::Red,
+        );
+        let results = solve_default(&hand);
+        let result = results.first().unwrap();
+        assert_contains_fan(&result, FanType::BigFourWinds);
+        assert_not_contains_fan(&result, FanType::AllPungs);
+        assert_not_contains_fan(&result, FanType::BigThreeWinds);
+        // Combined with All Honors (stub — will pass when implemented)
+        // assert_contains_fan(&result, FanType::AllHonors);
+    }
 
-#[test]
-fn test_big_four_winds_example2() {
-    let hand = concealed_hand(
-        vec![
-            Meld::Pung(Triplet::new(Tile::East, true)),
-            Meld::Pung(Triplet::new(Tile::South, true)),
-            Meld::Pung(Triplet::new(Tile::West, true)),
-            Meld::Pung(Triplet::new(Tile::North, true)),
-        ],
-        Tile::Character9,
-    );
-    let results = solve_default(&hand);
-    let result = results.first().unwrap();
-    assert_contains_fan(&result, FanType::BigFourWinds);
-}
+    #[test]
+    fn test_big_four_winds_example2() {
+        let hand = concealed_hand(
+            vec![
+                Meld::Pung(Triplet::new(Tile::East, true)),
+                Meld::Pung(Triplet::new(Tile::South, true)),
+                Meld::Pung(Triplet::new(Tile::West, true)),
+                Meld::Pung(Triplet::new(Tile::North, true)),
+            ],
+            Tile::Character9,
+        );
+        let results = solve_default(&hand);
+        let result = results.first().unwrap();
+        assert_contains_fan(&result, FanType::BigFourWinds);
+    }
 
-#[test]
-fn test_big_four_winds_example3() {
-    let hand = concealed_hand(
-        vec![
-            Meld::Pung(Triplet::new(Tile::East, true)),
-            Meld::Pung(Triplet::new(Tile::South, true)),
-            Meld::Pung(Triplet::new(Tile::West, true)),
-            Meld::Pung(Triplet::new(Tile::North, true)),
-        ],
-        Tile::Bamboo3,
-    );
-    let results = solve_default(&hand);
-    let result = results.first().unwrap();
-    assert_contains_fan(&result, FanType::BigFourWinds);
-}
+    #[test]
+    fn test_big_four_winds_example3() {
+        let hand = concealed_hand(
+            vec![
+                Meld::Pung(Triplet::new(Tile::East, true)),
+                Meld::Pung(Triplet::new(Tile::South, true)),
+                Meld::Pung(Triplet::new(Tile::West, true)),
+                Meld::Pung(Triplet::new(Tile::North, true)),
+            ],
+            Tile::Bamboo3,
+        );
+        let results = solve_default(&hand);
+        let result = results.first().unwrap();
+        assert_contains_fan(&result, FanType::BigFourWinds);
+    }
 
-// ── 2. Big Three Dragons ──
+    // ── 2. Big Three Dragons ──
 
-#[test]
-fn test_big_three_dragons_example1() {
-    let hand = concealed_hand(
-        vec![
-            Meld::Pung(Triplet::new(Tile::Red, true)),
-            Meld::Pung(Triplet::new(Tile::Green, true)),
-            Meld::Pung(Triplet::new(Tile::White, true)),
-            Meld::Pung(Triplet::new(Tile::Character1, true)),
-        ],
-        Tile::Dot9,
-    );
-    let results = solve_default(&hand);
-    let result = results.first().unwrap();
-    assert_contains_fan(&result, FanType::BigThreeDragons);
-    assert_not_contains_fan(&result, FanType::TwoDragonPungs);
-    assert_not_contains_fan(&result, FanType::DragonPung);
-}
+    #[test]
+    fn test_big_three_dragons_example1() {
+        let hand = concealed_hand(
+            vec![
+                Meld::Pung(Triplet::new(Tile::Red, true)),
+                Meld::Pung(Triplet::new(Tile::Green, true)),
+                Meld::Pung(Triplet::new(Tile::White, true)),
+                Meld::Pung(Triplet::new(Tile::Character1, true)),
+            ],
+            Tile::Dot9,
+        );
+        let results = solve_default(&hand);
+        let result = results.first().unwrap();
+        assert_contains_fan(&result, FanType::BigThreeDragons);
+        assert_not_contains_fan(&result, FanType::TwoDragonPungs);
+        assert_not_contains_fan(&result, FanType::DragonPung);
+    }
 
-#[test]
-fn test_big_three_dragons_example2() {
-    // Original doc: pair = White, but White pung + White pair = 5 tiles
-    // which is impossible in MCR. Adjusted to West per the user's fix.
-    let hand = concealed_hand(
-        vec![
-            Meld::Pung(Triplet::new(Tile::Red, true)),
-            Meld::Pung(Triplet::new(Tile::Green, true)),
-            Meld::Pung(Triplet::new(Tile::White, true)),
-            Meld::Pung(Triplet::new(Tile::East, true)),
-        ],
-        Tile::West,
-    );
-    let results = solve_default(&hand);
-    let result = results.first().unwrap();
-    assert_contains_fan(&result, FanType::BigThreeDragons);
-}
+    #[test]
+    fn test_big_three_dragons_example2() {
+        // Original doc: pair = White, but White pung + White pair = 5 tiles
+        // which is impossible in MCR. Adjusted to West per the user's fix.
+        let hand = concealed_hand(
+            vec![
+                Meld::Pung(Triplet::new(Tile::Red, true)),
+                Meld::Pung(Triplet::new(Tile::Green, true)),
+                Meld::Pung(Triplet::new(Tile::White, true)),
+                Meld::Pung(Triplet::new(Tile::East, true)),
+            ],
+            Tile::West,
+        );
+        let results = solve_default(&hand);
+        let result = results.first().unwrap();
+        assert_contains_fan(&result, FanType::BigThreeDragons);
+    }
 
-#[test]
-fn test_big_three_dragons_example3() {
-    let hand = concealed_hand(
-        vec![
-            Meld::Pung(Triplet::new(Tile::Red, true)),
-            Meld::Pung(Triplet::new(Tile::Green, true)),
-            Meld::Pung(Triplet::new(Tile::White, true)),
-            Meld::Pung(Triplet::new(Tile::Bamboo4, true)),
-        ],
-        Tile::Bamboo5,
-    );
-    let results = solve_default(&hand);
-    let result = results.first().unwrap();
-    assert_contains_fan(&result, FanType::BigThreeDragons);
-}
+    #[test]
+    fn test_big_three_dragons_example3() {
+        let hand = concealed_hand(
+            vec![
+                Meld::Pung(Triplet::new(Tile::Red, true)),
+                Meld::Pung(Triplet::new(Tile::Green, true)),
+                Meld::Pung(Triplet::new(Tile::White, true)),
+                Meld::Pung(Triplet::new(Tile::Bamboo4, true)),
+            ],
+            Tile::Bamboo5,
+        );
+        let results = solve_default(&hand);
+        let result = results.first().unwrap();
+        assert_contains_fan(&result, FanType::BigThreeDragons);
+    }
 
-// ── 3. All Green ──
+    // ── 3. All Green ──
 
-#[test]
-fn test_all_green_example1() {
-    // Seven pairs of green tiles + Green Dragon
-    // Use declared hand with 4 pungs of green tiles + pair Green Dragon
-    let hand = all_declared_hand(
-        vec![
-            Meld::Pung(Triplet::new(Tile::Bamboo2, false)),
-            Meld::Pung(Triplet::new(Tile::Bamboo4, false)),
-            Meld::Pung(Triplet::new(Tile::Bamboo6, false)),
-            Meld::Pung(Triplet::new(Tile::Bamboo8, false)),
-        ],
-        Tile::Green,
-    );
-    let results = solve_default(&hand);
-    let result = results.first().unwrap();
-    assert_contains_fan(&result, FanType::AllGreen);
-}
+    #[test]
+    fn test_all_green_example1() {
+        // Seven pairs of green tiles + Green Dragon
+        // Use declared hand with 4 pungs of green tiles + pair Green Dragon
+        let hand = all_declared_hand(
+            vec![
+                Meld::Pung(Triplet::new(Tile::Bamboo2, false)),
+                Meld::Pung(Triplet::new(Tile::Bamboo4, false)),
+                Meld::Pung(Triplet::new(Tile::Bamboo6, false)),
+                Meld::Pung(Triplet::new(Tile::Bamboo8, false)),
+            ],
+            Tile::Green,
+        );
+        let results = solve_default(&hand);
+        let result = results.first().unwrap();
+        assert_contains_fan(&result, FanType::AllGreen);
+    }
 
-// ── 4. Nine Gates ──
+    // ── 4. Nine Gates ──
 
-#[test]
-fn test_nine_gates() {
-    // 1112345678999 Wan + winning tile Wan9
-    // Need all in concealed hand for the decomposition engine
-    let mut hand = Hand::default();
-    // 1×3, 2,3,4,5,6,7,8, 9×4 = 14 tiles
-    for _ in 0..3 {
+    #[test]
+    fn test_nine_gates() {
+        // 1112345678999 Wan + winning tile Wan9
+        // Need all in concealed hand for the decomposition engine
+        let mut hand = Hand::default();
+        // 1×3, 2,3,4,5,6,7,8, 9×4 = 14 tiles
+        for _ in 0..3 {
+            hand.concealed.insert(Tile::Character1);
+        }
+        hand.concealed.insert(Tile::Character2);
+        hand.concealed.insert(Tile::Character3);
+        hand.concealed.insert(Tile::Character4);
+        hand.concealed.insert(Tile::Character5);
+        hand.concealed.insert(Tile::Character6);
+        hand.concealed.insert(Tile::Character7);
+        hand.concealed.insert(Tile::Character8);
+        for _ in 0..4 {
+            hand.concealed.insert(Tile::Character9);
+        }
+        let results = solve_default(&hand);
+        let result = results.first().unwrap();
+        assert_contains_fan(&result, FanType::NineGates);
+    }
+
+    // ── 5. Four Kongs ──
+
+    #[test]
+    fn test_four_kongs_example1() {
+        // Kongs must be declared melds — cannot have 4 identical tiles concealed.
+        let hand = all_declared_hand(
+            vec![
+                Meld::Kong(Quad::new(Tile::Bamboo2, false)),
+                Meld::Kong(Quad::new(Tile::Character5, false)),
+                Meld::Kong(Quad::new(Tile::Dot7, false)),
+                Meld::Kong(Quad::new(Tile::East, false)),
+            ],
+            Tile::Red,
+        );
+        let results = solve_default(&hand);
+        let result = results.first().unwrap();
+        assert_contains_fan(&result, FanType::FourKongs);
+        assert_not_contains_fan(&result, FanType::SingleWait);
+    }
+
+    #[test]
+    fn test_four_kongs_example2() {
+        let hand = all_declared_hand(
+            vec![
+                Meld::Kong(Quad::new(Tile::Character1, false)),
+                Meld::Kong(Quad::new(Tile::Bamboo2, false)),
+                Meld::Kong(Quad::new(Tile::Dot7, false)),
+                Meld::Kong(Quad::new(Tile::Bamboo1, false)),
+            ],
+            Tile::Character4,
+        );
+        let results = solve_default(&hand);
+        let result = results.first().unwrap();
+        assert_contains_fan(&result, FanType::FourKongs);
+    }
+
+    #[test]
+    fn test_four_kongs_example3() {
+        let hand = all_declared_hand(
+            vec![
+                Meld::Kong(Quad::new(Tile::Red, false)),
+                Meld::Kong(Quad::new(Tile::Green, false)),
+                Meld::Kong(Quad::new(Tile::White, false)),
+                Meld::Kong(Quad::new(Tile::North, false)),
+            ],
+            Tile::East,
+        );
+        let results = solve_default(&hand);
+        let result = results.first().unwrap();
+        assert_contains_fan(&result, FanType::FourKongs);
+    }
+
+    // ── 6. Seven Shifted Pairs ──
+
+    #[test]
+    fn test_seven_shifted_pairs() {
+        // Dot2-2, Dot3-3, Dot4-4, Dot5-5, Dot6-6, Dot7-7, Dot8-8
+        // All 14 tiles in concealed — special decomposition engine handles it
+        let mut hand = Hand::default();
+        for i in 2..=8 {
+            let t = match i {
+                2 => Tile::Dot2,
+                3 => Tile::Dot3,
+                4 => Tile::Dot4,
+                5 => Tile::Dot5,
+                6 => Tile::Dot6,
+                7 => Tile::Dot7,
+                8 => Tile::Dot8,
+                _ => unreachable!(),
+            };
+            hand.concealed.insert(t);
+            hand.concealed.insert(t);
+        }
+        let results = solve_default(&hand);
+        let result = results.first().unwrap();
+        assert_contains_fan(&result, FanType::SevenShiftedPairs);
+    }
+
+    // ── 7. Thirteen Orphans ──
+
+    #[test]
+    fn test_thirteen_orphans() {
+        // 1-9 each suit + all honors + pair of one
+        let mut hand = Hand::default();
+        // 13 orphans: Dot1, Dot9, Bam1, Bam9, Wan1, Wan9, all 7 honors
+        hand.concealed.insert(Tile::Dot1);
+        hand.concealed.insert(Tile::Dot9);
+        hand.concealed.insert(Tile::Bamboo1);
+        hand.concealed.insert(Tile::Bamboo9);
         hand.concealed.insert(Tile::Character1);
-    }
-    hand.concealed.insert(Tile::Character2);
-    hand.concealed.insert(Tile::Character3);
-    hand.concealed.insert(Tile::Character4);
-    hand.concealed.insert(Tile::Character5);
-    hand.concealed.insert(Tile::Character6);
-    hand.concealed.insert(Tile::Character7);
-    hand.concealed.insert(Tile::Character8);
-    for _ in 0..4 {
         hand.concealed.insert(Tile::Character9);
+        hand.concealed.insert(Tile::East);
+        hand.concealed.insert(Tile::South);
+        hand.concealed.insert(Tile::West);
+        hand.concealed.insert(Tile::North);
+        hand.concealed.insert(Tile::Red);
+        hand.concealed.insert(Tile::Green);
+        hand.concealed.insert(Tile::White);
+        // Pair: North
+        hand.concealed.insert(Tile::North);
+        let results = solve_default(&hand);
+        let result = results.first().unwrap();
+        assert_contains_fan(&result, FanType::ThirteenOrphans);
     }
-    let results = solve_default(&hand);
-    let result = results.first().unwrap();
-    assert_contains_fan(&result, FanType::NineGates);
-}
 
-// ── 5. Four Kongs ──
+    // ═══════════════════════════════════════════════════════════════
+    // 64-point fans
+    // ═══════════════════════════════════════════════════════════════
 
-#[test]
-fn test_four_kongs_example1() {
-    // Kongs must be declared melds — cannot have 4 identical tiles concealed.
-    let hand = all_declared_hand(
-        vec![
-            Meld::Kong(Quad::new(Tile::Bamboo2, false)),
-            Meld::Kong(Quad::new(Tile::Character5, false)),
-            Meld::Kong(Quad::new(Tile::Dot7, false)),
-            Meld::Kong(Quad::new(Tile::East, false)),
-        ],
-        Tile::Red,
-    );
-    let results = solve_default(&hand);
-    let result = results.first().unwrap();
-    assert_contains_fan(&result, FanType::FourKongs);
-    assert_not_contains_fan(&result, FanType::SingleWait);
-}
+    // ── 8. All Terminals ──
 
-#[test]
-fn test_four_kongs_example2() {
-    let hand = all_declared_hand(
-        vec![
-            Meld::Kong(Quad::new(Tile::Character1, false)),
-            Meld::Kong(Quad::new(Tile::Bamboo2, false)),
-            Meld::Kong(Quad::new(Tile::Dot7, false)),
-            Meld::Kong(Quad::new(Tile::Bamboo1, false)),
-        ],
-        Tile::Character4,
-    );
-    let results = solve_default(&hand);
-    let result = results.first().unwrap();
-    assert_contains_fan(&result, FanType::FourKongs);
-}
-
-#[test]
-fn test_four_kongs_example3() {
-    let hand = all_declared_hand(
-        vec![
-            Meld::Kong(Quad::new(Tile::Red, false)),
-            Meld::Kong(Quad::new(Tile::Green, false)),
-            Meld::Kong(Quad::new(Tile::White, false)),
-            Meld::Kong(Quad::new(Tile::North, false)),
-        ],
-        Tile::East,
-    );
-    let results = solve_default(&hand);
-    let result = results.first().unwrap();
-    assert_contains_fan(&result, FanType::FourKongs);
-}
-
-// ── 6. Seven Shifted Pairs ──
-
-#[test]
-fn test_seven_shifted_pairs() {
-    // Dot2-2, Dot3-3, Dot4-4, Dot5-5, Dot6-6, Dot7-7, Dot8-8
-    // All 14 tiles in concealed — special decomposition engine handles it
-    let mut hand = Hand::default();
-    for i in 2..=8 {
-        let t = match i {
-            2 => Tile::Dot2,
-            3 => Tile::Dot3,
-            4 => Tile::Dot4,
-            5 => Tile::Dot5,
-            6 => Tile::Dot6,
-            7 => Tile::Dot7,
-            8 => Tile::Dot8,
-            _ => unreachable!(),
-        };
-        hand.concealed.insert(t);
-        hand.concealed.insert(t);
+    #[test]
+    fn test_all_terminals() {
+        let hand = all_declared_hand(
+            vec![
+                Meld::Pung(Triplet::new(Tile::Character1, false)),
+                Meld::Pung(Triplet::new(Tile::Bamboo1, false)),
+                Meld::Pung(Triplet::new(Tile::Character9, false)),
+                Meld::Pung(Triplet::new(Tile::Dot9, false)),
+            ],
+            Tile::Bamboo1,
+        );
+        let results = solve_default(&hand);
+        let result = results.first().unwrap();
+        assert_contains_fan(&result, FanType::AllTerminals);
+        assert_not_contains_fan(&result, FanType::NoHonors);
+        assert_not_contains_fan(&result, FanType::PungOfTerminalsOrHonors);
     }
-    let results = solve_default(&hand);
-    let result = results.first().unwrap();
-    assert_contains_fan(&result, FanType::SevenShiftedPairs);
-}
 
-// ── 7. Thirteen Orphans ──
+    // ── 9. Little Four Winds ──
 
-#[test]
-fn test_thirteen_orphans() {
-    // 1-9 each suit + all honors + pair of one
-    let mut hand = Hand::default();
-    // 13 orphans: Dot1, Dot9, Bam1, Bam9, Wan1, Wan9, all 7 honors
-    hand.concealed.insert(Tile::Dot1);
-    hand.concealed.insert(Tile::Dot9);
-    hand.concealed.insert(Tile::Bamboo1);
-    hand.concealed.insert(Tile::Bamboo9);
-    hand.concealed.insert(Tile::Character1);
-    hand.concealed.insert(Tile::Character9);
-    hand.concealed.insert(Tile::East);
-    hand.concealed.insert(Tile::South);
-    hand.concealed.insert(Tile::West);
-    hand.concealed.insert(Tile::North);
-    hand.concealed.insert(Tile::Red);
-    hand.concealed.insert(Tile::Green);
-    hand.concealed.insert(Tile::White);
-    // Pair: North
-    hand.concealed.insert(Tile::North);
-    let results = solve_default(&hand);
-    let result = results.first().unwrap();
-    assert_contains_fan(&result, FanType::ThirteenOrphans);
-}
+    #[test]
+    fn test_little_four_winds_example1() {
+        let hand = concealed_hand(
+            vec![
+                Meld::Pung(Triplet::new(Tile::East, true)),
+                Meld::Pung(Triplet::new(Tile::West, true)),
+                Meld::Pung(Triplet::new(Tile::North, true)),
+                Meld::Chow(Sequence::new(Tile::Bamboo1, true)),
+            ],
+            Tile::South,
+        );
+        let results = solve_default(&hand);
+        let result = results.first().unwrap();
+        assert_contains_fan(&result, FanType::LittleFourWinds);
+        assert_not_contains_fan(&result, FanType::BigThreeWinds);
+    }
 
-// ═══════════════════════════════════════════════════════════════
-// 64-point fans
-// ═══════════════════════════════════════════════════════════════
+    #[test]
+    fn test_little_four_winds_example2() {
+        let hand = concealed_hand(
+            vec![
+                Meld::Pung(Triplet::new(Tile::West, true)),
+                Meld::Pung(Triplet::new(Tile::South, true)),
+                Meld::Pung(Triplet::new(Tile::North, true)),
+                Meld::Pung(Triplet::new(Tile::White, true)),
+            ],
+            Tile::East,
+        );
+        let results = solve_default(&hand);
+        let result = results.first().unwrap();
+        assert_contains_fan(&result, FanType::LittleFourWinds);
+    }
 
-// ── 8. All Terminals ──
+    // ── 10. Little Three Dragons ──
 
-#[test]
-fn test_all_terminals() {
-    let hand = all_declared_hand(
-        vec![
-            Meld::Pung(Triplet::new(Tile::Character1, false)),
-            Meld::Pung(Triplet::new(Tile::Bamboo1, false)),
-            Meld::Pung(Triplet::new(Tile::Character9, false)),
-            Meld::Pung(Triplet::new(Tile::Dot9, false)),
-        ],
-        Tile::Bamboo1,
-    );
-    let results = solve_default(&hand);
-    let result = results.first().unwrap();
-    assert_contains_fan(&result, FanType::AllTerminals);
-    assert_not_contains_fan(&result, FanType::NoHonors);
-    assert_not_contains_fan(&result, FanType::PungOfTerminalsOrHonors);
-}
+    #[test]
+    fn test_little_three_dragons_example1() {
+        let hand = concealed_hand(
+            vec![
+                Meld::Pung(Triplet::new(Tile::Red, true)),
+                Meld::Pung(Triplet::new(Tile::Green, true)),
+                Meld::Pung(Triplet::new(Tile::Dot1, true)),
+                Meld::Pung(Triplet::new(Tile::Dot9, true)),
+            ],
+            Tile::White,
+        );
+        let results = solve_default(&hand);
+        let result = results.first().unwrap();
+        assert_contains_fan(&result, FanType::LittleThreeDragons);
+        assert_not_contains_fan(&result, FanType::DragonPung);
+        assert_not_contains_fan(&result, FanType::TwoDragonPungs);
+    }
 
-// ── 9. Little Four Winds ──
+    #[test]
+    fn test_little_three_dragons_example2() {
+        let hand = concealed_hand(
+            vec![
+                Meld::Pung(Triplet::new(Tile::Red, true)),
+                Meld::Pung(Triplet::new(Tile::White, true)),
+                Meld::Chow(Sequence::new(Tile::Bamboo1, true)),
+                Meld::Pung(Triplet::new(Tile::Dot1, true)),
+            ],
+            Tile::Green,
+        );
+        let results = solve_default(&hand);
+        let result = results.first().unwrap();
+        assert_contains_fan(&result, FanType::LittleThreeDragons);
+    }
 
-#[test]
-fn test_little_four_winds_example1() {
-    let hand = concealed_hand(
-        vec![
-            Meld::Pung(Triplet::new(Tile::East, true)),
-            Meld::Pung(Triplet::new(Tile::West, true)),
-            Meld::Pung(Triplet::new(Tile::North, true)),
-            Meld::Chow(Sequence::new(Tile::Bamboo1, true)),
-        ],
-        Tile::South,
-    );
-    let results = solve_default(&hand);
-    let result = results.first().unwrap();
-    assert_contains_fan(&result, FanType::LittleFourWinds);
-    assert_not_contains_fan(&result, FanType::BigThreeWinds);
-}
+    #[test]
+    fn test_little_three_dragons_example3() {
+        let hand = concealed_hand(
+            vec![
+                Meld::Pung(Triplet::new(Tile::Red, true)),
+                Meld::Pung(Triplet::new(Tile::White, true)),
+                Meld::Pung(Triplet::new(Tile::East, true)),
+                Meld::Pung(Triplet::new(Tile::North, true)),
+            ],
+            Tile::Green,
+        );
+        let results = solve_default(&hand);
+        let result = results.first().unwrap();
+        assert_contains_fan(&result, FanType::LittleThreeDragons);
+    }
 
-#[test]
-fn test_little_four_winds_example2() {
-    let hand = concealed_hand(
-        vec![
-            Meld::Pung(Triplet::new(Tile::West, true)),
-            Meld::Pung(Triplet::new(Tile::South, true)),
-            Meld::Pung(Triplet::new(Tile::North, true)),
-            Meld::Pung(Triplet::new(Tile::White, true)),
-        ],
-        Tile::East,
-    );
-    let results = solve_default(&hand);
-    let result = results.first().unwrap();
-    assert_contains_fan(&result, FanType::LittleFourWinds);
-}
+    // ── 11. All Honors ──
 
-// ── 10. Little Three Dragons ──
+    #[test]
+    fn test_all_honors() {
+        let hand = all_declared_hand(
+            vec![
+                Meld::Pung(Triplet::new(Tile::Red, false)),
+                Meld::Pung(Triplet::new(Tile::White, false)),
+                Meld::Pung(Triplet::new(Tile::East, false)),
+                Meld::Pung(Triplet::new(Tile::South, false)),
+            ],
+            Tile::North,
+        );
+        let results = solve_default(&hand);
+        let result = results.first().unwrap();
+        assert_contains_fan(&result, FanType::AllHonors);
+        assert_not_contains_fan(&result, FanType::PungOfTerminalsOrHonors);
+    }
 
-#[test]
-fn test_little_three_dragons_example1() {
-    let hand = concealed_hand(
-        vec![
-            Meld::Pung(Triplet::new(Tile::Red, true)),
-            Meld::Pung(Triplet::new(Tile::Green, true)),
-            Meld::Pung(Triplet::new(Tile::Dot1, true)),
-            Meld::Pung(Triplet::new(Tile::Dot9, true)),
-        ],
-        Tile::White,
-    );
-    let results = solve_default(&hand);
-    let result = results.first().unwrap();
-    assert_contains_fan(&result, FanType::LittleThreeDragons);
-    assert_not_contains_fan(&result, FanType::DragonPung);
-    assert_not_contains_fan(&result, FanType::TwoDragonPungs);
-}
+    // ── 12. Four Concealed Pungs ──
 
-#[test]
-fn test_little_three_dragons_example2() {
-    let hand = concealed_hand(
-        vec![
-            Meld::Pung(Triplet::new(Tile::Red, true)),
-            Meld::Pung(Triplet::new(Tile::White, true)),
-            Meld::Chow(Sequence::new(Tile::Bamboo1, true)),
-            Meld::Pung(Triplet::new(Tile::Dot1, true)),
-        ],
-        Tile::Green,
-    );
-    let results = solve_default(&hand);
-    let result = results.first().unwrap();
-    assert_contains_fan(&result, FanType::LittleThreeDragons);
-}
+    #[test]
+    fn test_four_concealed_pungs() {
+        let hand = concealed_hand(
+            vec![
+                Meld::Pung(Triplet::new(Tile::Bamboo2, true)),
+                Meld::Pung(Triplet::new(Tile::Dot3, true)),
+                Meld::Pung(Triplet::new(Tile::Character4, true)),
+                Meld::Pung(Triplet::new(Tile::Dot2, true)),
+            ],
+            Tile::Character3,
+        );
+        let results = solve_default(&hand);
+        let result = results.first().unwrap();
+        assert_contains_fan(&result, FanType::FourConcealedPungs);
+        assert_not_contains_fan(&result, FanType::AllPungs);
+        assert_not_contains_fan(&result, FanType::ConcealedHand);
+    }
 
-#[test]
-fn test_little_three_dragons_example3() {
-    let hand = concealed_hand(
-        vec![
-            Meld::Pung(Triplet::new(Tile::Red, true)),
-            Meld::Pung(Triplet::new(Tile::White, true)),
-            Meld::Pung(Triplet::new(Tile::East, true)),
-            Meld::Pung(Triplet::new(Tile::North, true)),
-        ],
-        Tile::Green,
-    );
-    let results = solve_default(&hand);
-    let result = results.first().unwrap();
-    assert_contains_fan(&result, FanType::LittleThreeDragons);
-}
+    // ── 13. Pure Terminal Chows ──
 
-// ── 11. All Honors ──
+    #[test]
+    fn test_pure_terminal_chows() {
+        let hand = concealed_hand(
+            vec![
+                Meld::Chow(Sequence::new(Tile::Bamboo1, true)),
+                Meld::Chow(Sequence::new(Tile::Bamboo1, true)),
+                Meld::Chow(Sequence::new(Tile::Bamboo7, true)),
+                Meld::Chow(Sequence::new(Tile::Bamboo7, true)),
+            ],
+            Tile::Bamboo5,
+        );
+        let results = solve_default(&hand);
+        let result = results.first().unwrap();
+        assert_contains_fan(&result, FanType::PureTerminalChows);
+    }
 
-#[test]
-fn test_all_honors() {
-    let hand = all_declared_hand(
-        vec![
-            Meld::Pung(Triplet::new(Tile::Red, false)),
-            Meld::Pung(Triplet::new(Tile::White, false)),
-            Meld::Pung(Triplet::new(Tile::East, false)),
-            Meld::Pung(Triplet::new(Tile::South, false)),
-        ],
-        Tile::North,
-    );
-    let results = solve_default(&hand);
-    let result = results.first().unwrap();
-    assert_contains_fan(&result, FanType::AllHonors);
-    assert_not_contains_fan(&result, FanType::PungOfTerminalsOrHonors);
-}
+    // ═══════════════════════════════════════════════════════════════
+    // 48-point fans
+    // ═══════════════════════════════════════════════════════════════
 
-// ── 12. Four Concealed Pungs ──
+    // ── 14. Quadruple Chow ──
 
-#[test]
-fn test_four_concealed_pungs() {
-    let hand = concealed_hand(
-        vec![
-            Meld::Pung(Triplet::new(Tile::Bamboo2, true)),
-            Meld::Pung(Triplet::new(Tile::Dot3, true)),
-            Meld::Pung(Triplet::new(Tile::Character4, true)),
-            Meld::Pung(Triplet::new(Tile::Dot2, true)),
-        ],
-        Tile::Character3,
-    );
-    let results = solve_default(&hand);
-    let result = results.first().unwrap();
-    assert_contains_fan(&result, FanType::FourConcealedPungs);
-    assert_not_contains_fan(&result, FanType::AllPungs);
-    assert_not_contains_fan(&result, FanType::ConcealedHand);
-}
+    #[test]
+    fn test_quadruple_chow() {
+        let hand = concealed_hand(
+            vec![
+                Meld::Chow(Sequence::new(Tile::Character1, true)),
+                Meld::Chow(Sequence::new(Tile::Character1, true)),
+                Meld::Chow(Sequence::new(Tile::Character1, true)),
+                Meld::Chow(Sequence::new(Tile::Character1, true)),
+            ],
+            Tile::Character4,
+        );
+        let results = solve_default(&hand);
+        let result = results.first().unwrap();
+        assert_contains_fan(&result, FanType::QuadrupleChow);
+    }
 
-// ── 13. Pure Terminal Chows ──
-
-#[test]
-fn test_pure_terminal_chows() {
-    let hand = concealed_hand(
-        vec![
-            Meld::Chow(Sequence::new(Tile::Bamboo1, true)),
-            Meld::Chow(Sequence::new(Tile::Bamboo1, true)),
-            Meld::Chow(Sequence::new(Tile::Bamboo7, true)),
-            Meld::Chow(Sequence::new(Tile::Bamboo7, true)),
-        ],
-        Tile::Bamboo5,
-    );
-    let results = solve_default(&hand);
-    let result = results.first().unwrap();
-    assert_contains_fan(&result, FanType::PureTerminalChows);
-}
-
-// ═══════════════════════════════════════════════════════════════
-// 48-point fans
-// ═══════════════════════════════════════════════════════════════
-
-// ── 14. Quadruple Chow ──
-
-#[test]
-fn test_quadruple_chow() {
-    let hand = concealed_hand(
-        vec![
-            Meld::Chow(Sequence::new(Tile::Character1, true)),
-            Meld::Chow(Sequence::new(Tile::Character1, true)),
-            Meld::Chow(Sequence::new(Tile::Character1, true)),
-            Meld::Chow(Sequence::new(Tile::Character1, true)),
-        ],
-        Tile::Character4,
-    );
-    let results = solve_default(&hand);
-    let result = results.first().unwrap();
-    assert_contains_fan(&result, FanType::QuadrupleChow);
-}
-
-// ── 15. Four Pure Shifted Pungs ──
-
+    // ── 15. Four Pure Shifted Pungs ──
 }

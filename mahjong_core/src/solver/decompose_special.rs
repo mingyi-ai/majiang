@@ -1,4 +1,8 @@
-use crate::{solver::Decomposition, array_vec::ArrayVec, structs::{BitTileCounts, Pair, Tile}};
+use crate::{
+    array_vec::ArrayVec,
+    solver::Decomposition,
+    structs::{BitTileCounts, Pair, Tile},
+};
 
 /// Detect a Seven Pairs hand.
 ///
