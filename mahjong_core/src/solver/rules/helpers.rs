@@ -2,8 +2,8 @@
 // Shared helpers for MCR rule checking
 // ═══════════════════════════════════════════════════════════════
 
-use super::super::types::{FanCandidate, FanType};
-use super::super::view::{HandProfile, MeldInfo, MeldKind};
+use super::{FanCandidate, FanType};
+use super::profile::{HandProfile, MeldInfo, MeldKind};
 
 /// Create a FanCandidate with score set from FanType points.
 #[inline]

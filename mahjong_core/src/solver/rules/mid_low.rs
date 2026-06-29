@@ -6,18 +6,19 @@
 
 use std::collections::HashSet;
 
-use super::super::types::{FanCandidate, FanType};
-use super::super::view::{
+use super::{FanCandidate, FanType};
+use super::profile::{
     HandProfile, MeldKind, ProfileKind, is_reversible_tile, rank_of,
 };
-use super::super::{FanContext, WaitType, WinMethod};
+use super::super::{StaticFanContext, DynamicFanContext, WaitType, WinMethod};
 use super::helpers::{all_in_range, cand, is_chow, is_pung_or_kong};
 
 // ── 12 points ──────────────────────────────────────────────────
 
 pub(crate) fn lesser_honors_and_knitted_tiles(
     profile: &HandProfile,
-    _ctx: &FanContext,
+    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     match profile.kind {
         // ProfileKind::LesserHonorsAndKnittedTiles => {
@@ -31,7 +32,8 @@ pub(crate) const LESSER_HONORS_AND_KNITTED_TILES_EXCLUDES: &[FanType] =
 
 pub(crate) fn knitted_straight(
     profile: &HandProfile,
-    _ctx: &FanContext,
+    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     match profile.kind {
         // ProfileKind::KnittedStraight => {
@@ -44,7 +46,8 @@ pub(crate) const KNITTED_STRAIGHT_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn upper_four(
     profile: &HandProfile,
-    _ctx: &FanContext,
+    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     match profile.kind {
         ProfileKind::Standard if all_in_range(profile, 6, 9) => {
@@ -67,7 +70,8 @@ pub(crate) const UPPER_FOUR_EXCLUDES: &[FanType] = &[FanType::NoHonors];
 
 pub(crate) fn lower_four(
     profile: &HandProfile,
-    _ctx: &FanContext,
+    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     match profile.kind {
         ProfileKind::Standard if all_in_range(profile, 1, 4) => {
@@ -90,7 +94,8 @@ pub(crate) const LOWER_FOUR_EXCLUDES: &[FanType] = &[FanType::NoHonors];
 
 pub(crate) fn big_three_winds(
     profile: &HandProfile,
-    _ctx: &FanContext,
+    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     if !profile.is_standard() {
         return vec![];
@@ -112,7 +117,8 @@ pub(crate) const BIG_THREE_WINDS_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn mixed_straight(
     profile: &HandProfile,
-    _ctx: &FanContext,
+    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     if !profile.is_standard() {
         return vec![];
@@ -149,7 +155,8 @@ pub(crate) const MIXED_STRAIGHT_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn reversible_tiles(
     profile: &HandProfile,
-    _ctx: &FanContext,
+    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     match profile.kind {
         ProfileKind::Standard => {
@@ -174,7 +181,8 @@ pub(crate) const REVERSIBLE_TILES_EXCLUDES: &[FanType] =
 
 pub(crate) fn mixed_triple_chow(
     profile: &HandProfile,
-    _ctx: &FanContext,
+    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     if !profile.is_standard() {
         return vec![];
@@ -212,7 +220,8 @@ pub(crate) const MIXED_TRIPLE_CHOW_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn mixed_shifted_pungs(
     profile: &HandProfile,
-    _ctx: &FanContext,
+    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     if !profile.is_standard() {
         return vec![];
@@ -252,7 +261,8 @@ pub(crate) const MIXED_SHIFTED_PUNGS_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn chicken_hand(
     _profile: &HandProfile,
-    _ctx: &FanContext,
+    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     vec![]
 }
@@ -260,9 +270,10 @@ pub(crate) const CHICKEN_HAND_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn last_tile_draw(
     _profile: &HandProfile,
-    ctx: &FanContext,
+    static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
-    if ctx.is_last_tile_draw {
+    if static_ctx.is_last_tile_draw {
         vec![cand(FanType::LastTileDraw, 0, false)]
     } else {
         vec![]
@@ -272,9 +283,10 @@ pub(crate) const LAST_TILE_DRAW_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn last_tile_claim(
     _profile: &HandProfile,
-    ctx: &FanContext,
+    static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
-    if ctx.is_last_tile_claim {
+    if static_ctx.is_last_tile_claim {
         vec![cand(FanType::LastTileClaim, 0, false)]
     } else {
         vec![]
@@ -284,9 +296,10 @@ pub(crate) const LAST_TILE_CLAIM_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn out_with_replacement_tile(
     _profile: &HandProfile,
-    ctx: &FanContext,
+    _static_ctx: &StaticFanContext, dynamic_ctx: &DynamicFanContext,
+    _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
-    if ctx.win_method == WinMethod::KongReplacement {
+    if dynamic_ctx.is_kong_replacement {
         vec![cand(FanType::OutWithReplacementTile, 0, false)]
     } else {
         vec![]
@@ -296,9 +309,10 @@ pub(crate) const OUT_WITH_REPLACEMENT_TILE_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn robbing_the_kong(
     _profile: &HandProfile,
-    ctx: &FanContext,
+    _static_ctx: &StaticFanContext, dynamic_ctx: &DynamicFanContext,
+    _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
-    if ctx.win_method == WinMethod::RobKong {
+    if dynamic_ctx.is_rob_kong {
         vec![cand(FanType::RobbingTheKong, 0, false)]
     } else {
         vec![]
@@ -308,7 +322,8 @@ pub(crate) const ROBBING_THE_KONG_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn two_concealed_kongs(
     profile: &HandProfile,
-    _ctx: &FanContext,
+    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     let n = profile.n_sets as usize;
     let cnt = profile.melds[..n]
@@ -327,7 +342,8 @@ pub(crate) const TWO_CONCEALED_KONGS_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn all_pungs(
     profile: &HandProfile,
-    _ctx: &FanContext,
+    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     if profile.all_pungs && profile.n_sets == 4 {
         vec![cand(FanType::AllPungs, 0b1111, false)]
@@ -339,7 +355,8 @@ pub(crate) const ALL_PUNGS_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn half_flush(
     profile: &HandProfile,
-    _ctx: &FanContext,
+    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     if !profile.is_standard() {
         return vec![];
@@ -364,7 +381,8 @@ pub(crate) const HALF_FLUSH_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn mixed_shifted_chows(
     profile: &HandProfile,
-    _ctx: &FanContext,
+    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     if !profile.is_standard() {
         return vec![];
@@ -405,7 +423,8 @@ pub(crate) const MIXED_SHIFTED_CHOWS_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn all_types(
     profile: &HandProfile,
-    _ctx: &FanContext,
+    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     if !profile.is_standard() {
         return vec![];
@@ -449,7 +468,8 @@ pub(crate) const ALL_TYPES_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn melded_hand(
     profile: &HandProfile,
-    ctx: &FanContext,
+    static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     if !profile.is_standard() {
         return vec![];
@@ -457,8 +477,8 @@ pub(crate) fn melded_hand(
     let n = profile.n_sets as usize;
     let all_exposed = profile.melds[..n].iter().all(|m| !m.is_concealed);
     if all_exposed
-        && ctx.win_method == WinMethod::Discard
-        && ctx.wait_type == WaitType::Single
+        && static_ctx.win_method == WinMethod::Discard
+        && wait_type == WaitType::Single
     {
         vec![cand(FanType::MeldedHand, 0b1111, true)]
     } else {
@@ -469,7 +489,8 @@ pub(crate) const MELDED_HAND_EXCLUDES: &[FanType] = &[FanType::SingleWait];
 
 pub(crate) fn two_dragon_pungs(
     profile: &HandProfile,
-    _ctx: &FanContext,
+    _static_ctx: &StaticFanContext, _dynamic_ctx: &DynamicFanContext,
+    _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     let n = profile.n_sets as usize;
     let cnt = profile.melds[..n]

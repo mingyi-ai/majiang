@@ -10,8 +10,8 @@
 // Meld variants to extract rank, suit, kind, etc.
 // ═══════════════════════════════════════════════════════════════
 
-use super::decomposition::Decomposition;
 use crate::array_vec::ArrayVec;
+use crate::solver::Decomposition;
 use crate::structs::{Meld, Pair, Tile};
 
 // ── Kinds ──────────────────────────────────────────────────────
