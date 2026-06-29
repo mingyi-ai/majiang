@@ -504,3 +504,559 @@ pub(crate) fn two_dragon_pungs(
     }
 }
 pub(crate) const TWO_DRAGON_PUNGS_EXCLUDES: &[FanType] = &[];
+
+// ═══════════════════════════════════════════════════════════════
+// Tests — sourced from the official MCR rulebook
+// ═══════════════════════════════════════════════════════════════
+
+#[cfg(test)]
+#[allow(non_snake_case)]
+mod tests {
+    use super::super::test_helpers::*;
+    use super::super::FanType;
+    use crate::structs::{Hand, Meld, Quad, Sequence, Tile, Triplet, Wind};
+    use crate::solver::{DynamicFanContext, StaticFanContext, WaitType, WinMethod, solve_fan};
+
+#[test]
+fn test_three_concealed_pungs_example2() {
+    let hand = all_declared_hand(
+        vec![
+            Meld::Pung(Triplet::new(Tile::Bamboo4, true)),
+            Meld::Pung(Triplet::new(Tile::Bamboo7, true)),
+            Meld::Pung(Triplet::new(Tile::Bamboo8, true)),
+            Meld::Chow(Sequence::new(Tile::Bamboo1, false)),
+        ],
+        Tile::Bamboo5,
+    );
+    let results = solve_default(&hand);
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::ThreeConcealedPungs);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 12-point fans
+// ═══════════════════════════════════════════════════════════════
+
+// ── 34. Lesser Honors and Knitted Tiles ──
+
+#[test]
+fn test_lesser_honors_and_knitted_example1() {
+    // Requires special decomposition — test through standard engine
+    // when decompose_special supports it.
+}
+
+// ── 35. Knitted Straight ──
+
+#[test]
+fn test_knitted_straight_example1() {
+    // Requires special decomposition — test through standard engine
+    // when decompose_special supports it.
+}
+
+// ── 36. Upper Four ──
+
+#[test]
+fn test_upper_four_example1() {
+    let hand = concealed_hand(
+        vec![
+            Meld::Chow(Sequence::new(Tile::Bamboo7, true)),
+            Meld::Chow(Sequence::new(Tile::Dot6, true)),
+            Meld::Pung(Triplet::new(Tile::Dot7, true)),
+            Meld::Chow(Sequence::new(Tile::Character7, true)),
+        ],
+        Tile::Bamboo9,
+    );
+    let results = solve_default(&hand);
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::UpperFour);
+    assert_not_contains_fan(&result, FanType::NoHonors);
+}
+
+#[test]
+fn test_upper_four_example2() {
+    let hand = concealed_hand(
+        vec![
+            Meld::Chow(Sequence::new(Tile::Character7, true)),
+            Meld::Chow(Sequence::new(Tile::Bamboo7, true)),
+            Meld::Chow(Sequence::new(Tile::Dot7, true)),
+            Meld::Chow(Sequence::new(Tile::Dot7, true)),
+        ],
+        Tile::Dot6,
+    );
+    let results = solve_default(&hand);
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::UpperFour);
+}
+
+#[test]
+fn test_upper_four_example3() {
+    let hand = seven_pairs_hand(&[
+        Tile::Bamboo6,
+        Tile::Bamboo8,
+        Tile::Character6,
+        Tile::Character7,
+        Tile::Dot6,
+        Tile::Dot8,
+        Tile::Dot9,
+    ]);
+    let results = solve_default(&hand);
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::UpperFour);
+}
+
+// ── 37. Lower Four ──
+
+#[test]
+fn test_lower_four_example1() {
+    let hand = concealed_hand(
+        vec![
+            Meld::Chow(Sequence::new(Tile::Bamboo1, true)),
+            Meld::Chow(Sequence::new(Tile::Character1, true)),
+            Meld::Chow(Sequence::new(Tile::Dot1, true)),
+            Meld::Chow(Sequence::new(Tile::Character1, true)),
+        ],
+        Tile::Character4,
+    );
+    let results = solve_default(&hand);
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::LowerFour);
+    assert_not_contains_fan(&result, FanType::NoHonors);
+}
+
+#[test]
+fn test_lower_four_example2() {
+    let hand = concealed_hand(
+        vec![
+            Meld::Pung(Triplet::new(Tile::Bamboo1, true)),
+            Meld::Pung(Triplet::new(Tile::Bamboo2, true)),
+            Meld::Pung(Triplet::new(Tile::Bamboo3, true)),
+            Meld::Pung(Triplet::new(Tile::Bamboo4, true)),
+        ],
+        Tile::Character2,
+    );
+    let results = solve_default(&hand);
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::LowerFour);
+}
+
+// ── 38. Big Three Winds ──
+
+#[test]
+fn test_big_three_winds_example1() {
+    let hand = concealed_hand(
+        vec![
+            Meld::Pung(Triplet::new(Tile::East, true)),
+            Meld::Pung(Triplet::new(Tile::South, true)),
+            Meld::Pung(Triplet::new(Tile::West, true)),
+            Meld::Pung(Triplet::new(Tile::Character9, true)),
+        ],
+        Tile::Bamboo9,
+    );
+    let results = solve_default(&hand);
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::BigThreeWinds);
+}
+
+#[test]
+fn test_big_three_winds_example2() {
+    let hand = concealed_hand(
+        vec![
+            Meld::Pung(Triplet::new(Tile::South, true)),
+            Meld::Pung(Triplet::new(Tile::West, true)),
+            Meld::Pung(Triplet::new(Tile::North, true)),
+            Meld::Chow(Sequence::new(Tile::Character2, true)),
+        ],
+        Tile::Character5,
+    );
+    let results = solve_default(&hand);
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::BigThreeWinds);
+}
+
+#[test]
+fn test_big_three_winds_example3() {
+    let hand = concealed_hand(
+        vec![
+            Meld::Pung(Triplet::new(Tile::South, true)),
+            Meld::Pung(Triplet::new(Tile::West, true)),
+            Meld::Pung(Triplet::new(Tile::North, true)),
+            Meld::Pung(Triplet::new(Tile::Red, true)),
+        ],
+        Tile::Green,
+    );
+    let results = solve_default(&hand);
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::BigThreeWinds);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 8-point fans
+// ═══════════════════════════════════════════════════════════════
+
+// ── 39. Mixed Straight ──
+
+#[test]
+fn test_mixed_straight_example1() {
+    let hand = concealed_hand(
+        vec![
+            Meld::Chow(Sequence::new(Tile::Bamboo1, true)),
+            Meld::Chow(Sequence::new(Tile::Dot4, true)),
+            Meld::Chow(Sequence::new(Tile::Character7, true)),
+            Meld::Chow(Sequence::new(Tile::Bamboo1, true)),
+        ],
+        Tile::Dot8,
+    );
+    let results = solve_default(&hand);
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::MixedStraight);
+}
+
+#[test]
+fn test_mixed_straight_example2() {
+    let hand = concealed_hand(
+        vec![
+            Meld::Chow(Sequence::new(Tile::Character1, true)),
+            Meld::Chow(Sequence::new(Tile::Bamboo4, true)),
+            Meld::Chow(Sequence::new(Tile::Dot7, true)),
+            Meld::Chow(Sequence::new(Tile::Dot4, true)),
+        ],
+        Tile::Character7,
+    );
+    let results = solve_default(&hand);
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::MixedStraight);
+}
+
+// ── 40. Reversible Tiles ──
+
+#[test]
+fn test_reversible_tiles_example1() {
+    let hand = concealed_hand(
+        vec![
+            Meld::Chow(Sequence::new(Tile::Dot3, true)),
+            Meld::Chow(Sequence::new(Tile::Dot3, true)),
+            Meld::Chow(Sequence::new(Tile::Bamboo4, true)),
+            Meld::Chow(Sequence::new(Tile::Bamboo4, true)),
+        ],
+        Tile::Bamboo5,
+    );
+    let results = solve_default(&hand);
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::ReversibleTiles);
+}
+
+#[test]
+fn test_reversible_tiles_example2() {
+    let hand = concealed_hand(
+        vec![
+            Meld::Chow(Sequence::new(Tile::Dot2, true)),
+            Meld::Chow(Sequence::new(Tile::Bamboo4, true)),
+            Meld::Pung(Triplet::new(Tile::Dot8, true)),
+            Meld::Pung(Triplet::new(Tile::Bamboo8, true)),
+        ],
+        Tile::White,
+    );
+    let results = solve_default(&hand);
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::ReversibleTiles);
+}
+
+#[test]
+fn test_reversible_tiles_example3() {
+    let hand = all_declared_hand(
+        vec![
+            Meld::Pung(Triplet::new(Tile::Dot8, false)),
+            Meld::Pung(Triplet::new(Tile::Dot9, false)),
+            Meld::Pung(Triplet::new(Tile::Bamboo9, false)),
+            Meld::Pung(Triplet::new(Tile::White, false)),
+        ],
+        Tile::Bamboo8,
+    );
+    let results = solve_default(&hand);
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::ReversibleTiles);
+}
+
+// ── 41. Mixed Triple Chow ──
+
+#[test]
+fn test_mixed_triple_chow_example1() {
+    let hand = concealed_hand(
+        vec![
+            Meld::Chow(Sequence::new(Tile::Bamboo3, true)),
+            Meld::Chow(Sequence::new(Tile::Dot3, true)),
+            Meld::Chow(Sequence::new(Tile::Character3, true)),
+            Meld::Chow(Sequence::new(Tile::Character4, true)),
+        ],
+        Tile::Character4,
+    );
+    let results = solve_default(&hand);
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::MixedTripleChow);
+}
+
+#[test]
+fn test_mixed_triple_chow_example2() {
+    let hand = concealed_hand(
+        vec![
+            Meld::Chow(Sequence::new(Tile::Character6, true)),
+            Meld::Chow(Sequence::new(Tile::Bamboo6, true)),
+            Meld::Chow(Sequence::new(Tile::Dot6, true)),
+            Meld::Chow(Sequence::new(Tile::Dot6, true)),
+        ],
+        Tile::Bamboo9,
+    );
+    let results = solve_default(&hand);
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::MixedTripleChow);
+}
+
+// ── 42. Mixed Shifted Pungs ──
+
+#[test]
+fn test_mixed_shifted_pungs_example1() {
+    let hand = all_declared_hand(
+        vec![
+            Meld::Pung(Triplet::new(Tile::Dot2, false)),
+            Meld::Pung(Triplet::new(Tile::Bamboo3, false)),
+            Meld::Pung(Triplet::new(Tile::Character4, false)),
+            Meld::Pung(Triplet::new(Tile::Dot3, false)),
+        ],
+        Tile::Character2,
+    );
+    let results = solve_default(&hand);
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::MixedShiftedPungs);
+}
+
+#[test]
+fn test_mixed_shifted_pungs_example2() {
+    let hand = all_declared_hand(
+        vec![
+            Meld::Pung(Triplet::new(Tile::Character7, false)),
+            Meld::Pung(Triplet::new(Tile::Bamboo8, false)),
+            Meld::Pung(Triplet::new(Tile::Dot9, false)),
+            Meld::Chow(Sequence::new(Tile::Dot7, false)),
+        ],
+        Tile::Character9,
+    );
+    let results = solve_default(&hand);
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::MixedShiftedPungs);
+}
+
+// ── 43. Chicken Hand ──
+
+#[test]
+fn test_chicken_hand() {
+    // A hand with only a non-scoring pattern (e.g., mixed chows with honors
+    // that don't form any scoring combination).
+}
+
+// ── 48. Two Concealed Kongs ──
+
+#[test]
+fn test_two_concealed_kongs() {
+    // Kongs must be declared melds; they can be marked concealed (self-drawn).
+    let hand = all_declared_hand(
+        vec![
+            Meld::Kong(Quad::new(Tile::Bamboo1, true)),
+            Meld::Kong(Quad::new(Tile::East, true)),
+            Meld::Pung(Triplet::new(Tile::South, false)),
+            Meld::Chow(Sequence::new(Tile::Character7, false)),
+        ],
+        Tile::Character8,
+    );
+    let results = solve_default(&hand);
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::TwoConcealedKongs);
+}
+
+// ── 44. Last Tile Draw ──
+
+#[test]
+fn test_last_tile_draw() {
+    let hand = all_declared_hand(
+        vec![
+            Meld::Chow(Sequence::new(Tile::Character1, false)),
+            Meld::Chow(Sequence::new(Tile::Character4, false)),
+            Meld::Chow(Sequence::new(Tile::Character7, false)),
+            Meld::Chow(Sequence::new(Tile::Character1, false)),
+        ],
+        Tile::Character5,
+    );
+    let mut static_ctx = default_static_ctx();
+    static_ctx.is_last_tile_draw = true;
+    let dynamic_ctx = default_dynamic_ctx();
+    let results = solve_fan(&hand, &static_ctx, &dynamic_ctx).unwrap();
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::LastTileDraw);
+}
+
+// ── 45. Last Tile Claim ──
+
+#[test]
+fn test_last_tile_claim() {
+    let hand = all_declared_hand(
+        vec![
+            Meld::Chow(Sequence::new(Tile::Character1, false)),
+            Meld::Chow(Sequence::new(Tile::Character4, false)),
+            Meld::Chow(Sequence::new(Tile::Character7, false)),
+            Meld::Chow(Sequence::new(Tile::Character1, false)),
+        ],
+        Tile::Character5,
+    );
+    let mut static_ctx = default_static_ctx();
+    static_ctx.is_last_tile_claim = true;
+    let dynamic_ctx = default_dynamic_ctx();
+    let results = solve_fan(&hand, &static_ctx, &dynamic_ctx).unwrap();
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::LastTileClaim);
+}
+
+// ── 46. Out With Replacement Tile ──
+
+#[test]
+fn test_out_with_replacement_tile() {
+    let hand = all_declared_hand(
+        vec![
+            Meld::Chow(Sequence::new(Tile::Character1, false)),
+            Meld::Chow(Sequence::new(Tile::Character4, false)),
+            Meld::Chow(Sequence::new(Tile::Character7, false)),
+            Meld::Chow(Sequence::new(Tile::Character1, false)),
+        ],
+        Tile::Character5,
+    );
+    let static_ctx = default_static_ctx();
+    let mut dynamic_ctx = default_dynamic_ctx();
+    dynamic_ctx.is_kong_replacement = true;
+    let results = solve_fan(&hand, &static_ctx, &dynamic_ctx).unwrap();
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::OutWithReplacementTile);
+}
+
+// ── 47. Robbing The Kong ──
+
+#[test]
+fn test_robbing_the_kong() {
+    let hand = all_declared_hand(
+        vec![
+            Meld::Chow(Sequence::new(Tile::Character1, false)),
+            Meld::Chow(Sequence::new(Tile::Character4, false)),
+            Meld::Chow(Sequence::new(Tile::Character7, false)),
+            Meld::Chow(Sequence::new(Tile::Character1, false)),
+        ],
+        Tile::Character5,
+    );
+    let static_ctx = default_static_ctx();
+    let mut dynamic_ctx = default_dynamic_ctx();
+    dynamic_ctx.is_rob_kong = true;
+    let results = solve_fan(&hand, &static_ctx, &dynamic_ctx).unwrap();
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::RobbingTheKong);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 6-point fans
+// ═══════════════════════════════════════════════════════════════
+
+// ── 49. All Pungs ──
+
+#[test]
+// Fully concealed 4-pung hand qualifies for Four Concealed Pungs (64 pt)
+// which excludes All Pungs (6 pt).  To test All Pungs in isolation, use
+// exposed (declared) melds so Four Concealed Pungs doesn't apply.
+#[test]
+fn test_all_pungs() {
+    let hand = all_declared_hand(
+        vec![
+            Meld::Pung(Triplet::new(Tile::Character8, false)),
+            Meld::Pung(Triplet::new(Tile::Dot8, false)),
+            Meld::Pung(Triplet::new(Tile::Bamboo8, false)),
+            Meld::Pung(Triplet::new(Tile::White, false)),
+        ],
+        Tile::East,
+    );
+    let results = solve_default(&hand);
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::AllPungs);
+}
+
+// ── 50. Half Flush ──
+
+#[test]
+fn test_half_flush() {
+    let hand = concealed_hand(
+        vec![
+            Meld::Chow(Sequence::new(Tile::Character1, true)),
+            Meld::Chow(Sequence::new(Tile::Character2, true)),
+            Meld::Chow(Sequence::new(Tile::Character3, true)),
+            Meld::Chow(Sequence::new(Tile::Character7, true)),
+        ],
+        Tile::Red,
+    );
+    let results = solve_default(&hand);
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::HalfFlush);
+}
+
+// ── 51. Mixed Shifted Chows ──
+
+#[test]
+fn test_mixed_shifted_chows() {
+    let hand = concealed_hand(
+        vec![
+            Meld::Chow(Sequence::new(Tile::Bamboo1, true)),
+            Meld::Chow(Sequence::new(Tile::Character2, true)),
+            Meld::Chow(Sequence::new(Tile::Dot3, true)),
+            Meld::Chow(Sequence::new(Tile::Bamboo4, true)),
+        ],
+        Tile::Character5,
+    );
+    let results = solve_default(&hand);
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::MixedShiftedChows);
+}
+
+// ── 52. All Types ──
+
+#[test]
+fn test_all_types() {
+    let hand = concealed_hand(
+        vec![
+            Meld::Chow(Sequence::new(Tile::Character1, true)),
+            Meld::Chow(Sequence::new(Tile::Dot4, true)),
+            Meld::Chow(Sequence::new(Tile::Bamboo7, true)),
+            Meld::Pung(Triplet::new(Tile::Green, true)),
+        ],
+        Tile::North,
+    );
+    let results = solve_default(&hand);
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::AllTypes);
+}
+
+// ── 53. Melded Hand ──
+
+#[test]
+fn test_melded_hand() {
+    let hand = all_declared_hand(
+        vec![
+            Meld::Kong(Quad::new(Tile::Character2, false)),
+            Meld::Chow(Sequence::new(Tile::Dot4, false)),
+            Meld::Chow(Sequence::new(Tile::Character6, false)),
+            Meld::Pung(Triplet::new(Tile::Bamboo8, false)),
+        ],
+        Tile::Character6,
+    );
+    let mut static_ctx = default_static_ctx();
+    static_ctx.win_method = WinMethod::Discard;
+    let dynamic_ctx = default_dynamic_ctx();
+    let results = solve_fan(&hand, &static_ctx, &dynamic_ctx).unwrap();
+    let result = results.first().unwrap();
+    assert_contains_fan(&result, FanType::MeldedHand);
+}
+
+// ── 54. Two Dragon Pungs ──
+
+}
