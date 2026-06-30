@@ -56,7 +56,7 @@ pub struct DynamicFanContext {
 }
 
 /// A selected fan instance in the result.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct FanInstance {
     pub fan_type: FanType,
     pub(super) used_set_mask: u64,

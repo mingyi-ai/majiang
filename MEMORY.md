@@ -36,8 +36,7 @@ lib.rs
     ├── fan_solver.rs           → search kernel: solve_max_score (DFS + exclusion check)
     └── rules/
         ├── mod.rs              → mcr_rules! macro: generates FanType, impl, ALL_RULES, check_all
-        │                          FanExclusionSet, FanCandidate, RuleFn, empty_rule stub
-        ├── profile.rs          → HandProfile: pre-computed decomposition view for rule checking
+        │                          FanExclusionSet, FanInstance, RuleFn, empty_rule stub
         ├── helpers.rs          → cand(), meld predicates (is_pung_or_kong, is_chow, etc.)
         ├── test_helpers.rs     → concealed_hand, declared_hand, solve_default, assertion helpers
         ├── high.rs             → 88/64/48pt rule check functions + 23 tests
@@ -86,13 +85,11 @@ solve_fan(hand, static_ctx, dynamic_ctx)
   │
   ├─ flat_map lazy iteration
   │     score_decomposition(decomp, static_ctx, dynamic_ctx)
-  │       ├─ HandProfile::from_decomposition(decomp.decompositions)
-  │       ├─ rules::check_all(profile, static_ctx, dynamic_ctx, wait_type)
+  │       ├─ rules::check_all(decomp, static_ctx, dynamic_ctx, wait_type)
   │       │     → iterates ALL_RULES (81 entries), calls each check fn
-  │       │     → embeds precomputed excludes_mask on each candidate
   │       ├─ fan_solver::solve_max_score(candidates)
-  │       │     → iterative DFS: exclusion check + sig_key dedup + score monotonicity
-  │       └─ converts FanSolveResult → FanResult
+  │       │     → iterative DFS: exclusion check + dedup key + score monotonicity
+  │       └─ converts to Vec<FanResult>
   │
   └─ keep_highest_score(results) → Vec<FanResult> (ties kept)
 ```
@@ -171,12 +168,12 @@ subset exclusions are auto-derivable but listed explicitly for defense-in-depth.
 ### Principle 3: Non-Identical (No Double-Counting)
 
 **Rule**: The same fan instance cannot appear twice.  
-**Enforced by**: `sig_key` dedup (`fan_type | uses_pair | used_set_mask`).
+**Enforced by**: dedup key `(fan_type, uses_pair, used_set_mask)`.
 
 | Scenario | Result |
 |---|---|
-| Two `cand(AllPungs, 0, true)` from same check | ✗ Second rejected (identical sig_key) |
-| Same `AllPungs` candidate from different passes | ✗ Same sig_key regardless of source |
+| Two `cand(AllPungs, 0, true)` from same check | ✗ Second rejected (identical dedup key) |
+| Same `AllPungs` candidate from different passes | ✗ Same dedup key regardless of source |
 
 ---
 
@@ -211,7 +208,7 @@ single-set (popcount = 1) fans are exempt — they don't combine sets.
 |---|---|---|
 | `excludes_mask` | Non-Repeat + rulebook extras | Partial (subset relationships) |
 | `bridge_count` | Account-Once | Always (structural only) |
-| `sig_key` dedup | Non-Identical | Always |
+| dedup key | Non-Identical | Always |
 | `keep_highest_score` | Free Choice | Always |
 | Multiple segmentations | Non-Separation | Always (parser) |
 
@@ -251,6 +248,29 @@ Engine accepts any Hu without checking minimum 8-point requirement.
 ### 7. `can_hu()` ignores declared melds
 Currently delegates to `crate::solver::is_hu(&self.concealed)` which only sees concealed tiles. Hands with declared melds (e.g., 3 declared + 1 concealed set) are incorrectly rejected.
 
+# Data Type Simplifications
+
+## `SearchInstance` eliminated
+`SearchInstance` was the solver's internal per-candidate type, duplicating `FanCandidate` (in `rules/`) and `FanInstance` (in `solver/mod.rs`). Over several steps it was folded away:
+
+| Step | Change | Rationale |
+|---|---|---|
+| 1 | Removed `id: usize` from `SearchInstance` | Always equal to vector index — use `i` in sort, index for lookup |
+| 2 | Removed `sig_key: SigKey` (bit-packed u64) | Replaced with `DedupKey = (FanType, bool, u64)` tuple — `contains()` comparison is negligible for max-81 candidates |
+| 3 | Removed `score: u8` from `SearchInstance` | Derived from `fan_type.points()` at use-site |
+| 4 | Removed `FanCandidate` struct | Replaced with `pub(crate) use fan_solver::SearchInstance as FanCandidate`; then `SearchInstance` became `type SearchInstance = FanInstance` |
+| 5 | Removed `excludes_mask` from `SearchInstance` | Derived from `fan_type.excludes_mask()` at use-site |
+| 6 | Removed `order: Vec<usize>` from `SearchSpace` | Sort `instances` in place (stable sort by descending points); `search` indexes directly into `instances[scan]` |
+
+**End state**: `FanInstance` is the single candidate/result type throughout the pipeline.
+`FanCandidate` and `SearchInstance` no longer exist as separate structs. `check_all` no longer needs to
+inject `excludes_mask` onto candidates — it's computed on demand from `fan_type.excludes_mask()`.
+
+## Consequences
+- **Less code**: ~40 lines removed (struct definitions, bit-packing logic, identity maps)
+- **No stored derived data**: `score` and `excludes_mask` are always one method call away
+- **No aliasing confusion**: `FanInstance` is the one type, used everywhere
+
 # Refactoring Completed
 
 - [x] **`array_vec.rs`** — generic `ArrayVec<T, N>` at crate root
@@ -264,7 +284,7 @@ Currently delegates to `crate::solver::is_hu(&self.concealed)` which only sees c
 - [x] **Macro-generated rule registry** — `mcr_rules!` replaces FanType enum + ALL_RULES table + exclusion const arrays (all 81 rules)
 - [x] **HandProfile moved to rules/profile.rs** — fixed imports, co-located with consumers
 - [x] **No FanContext aggregate** — rule functions take `(&StaticFanContext, &DynamicFanContext, WaitType)`
-- [x] **RuleFn type alias** — `fn(&HandProfile, &StaticFanContext, &DynamicFanContext, WaitType) -> Vec<FanCandidate>`
+- [x] **RuleFn type alias** — `fn(&HandProfile, &StaticFanContext, &DynamicFanContext, WaitType) -> Vec<FanInstance>`
 - [x] **All 81 exclusion lists extracted and embedded in macro invocation**
 - [x] **All 5 rule submodules activated and import paths fixed**
 - [x] **All 81 rule check functions wired** (GreaterHonorsAndKnittedTiles → empty_rule stub)

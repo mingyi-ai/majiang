@@ -22,20 +22,14 @@ struct Frame {
 // ── Search space construction ──
 
 struct SearchSpace {
-    instances: Vec<FanInstance>,
-    order: Vec<usize>, // sorted by (-points, index) for deterministic pruning
+    instances: Vec<FanInstance>, // sorted by descending points (stable sort)
 }
 
 impl SearchSpace {
     fn build(candidates: Vec<FanInstance>) -> Self {
-        let instances = candidates;
-        let mut order: Vec<usize> = (0..instances.len()).collect();
-        order.sort_by_key(|&i| {
-            let inst = &instances[i];
-            ((inst.fan_type.points() as i16).wrapping_neg(), i)
-        });
-
-        Self { instances, order }
+        let mut instances = candidates;
+        instances.sort_by(|a, b| b.fan_type.points().cmp(&a.fan_type.points()));
+        Self { instances }
     }
 }
 
@@ -108,13 +102,12 @@ pub fn solve_max_score(candidates: Vec<FanInstance>) -> Vec<FanResult> {
 
     let space = SearchSpace::build(candidates);
     let instances = &space.instances;
-    let order = &space.order;
 
     let mut path: Vec<usize> = Vec::with_capacity(8);
     let mut used_keys: Vec<DedupKey> = Vec::with_capacity(32);
 
     let mut excluded_mask = FanExclusionSet::default();
-    let mut max_allowed_score = instances[order[0]].fan_type.points();
+    let mut max_allowed_score = instances[0].fan_type.points();
     let mut total_score: u16 = 0;
     let mut used_sets: u64 = 0;
     let mut bridge_count: [u8; 4] = [0; 4];
@@ -128,9 +121,8 @@ pub fn solve_max_score(candidates: Vec<FanInstance>) -> Vec<FanResult> {
     loop {
         let mut picked = false;
         let mut scan = pos;
-        while scan < order.len() {
-            let inst_id = order[scan];
-            let inst = &instances[inst_id];
+        while scan < instances.len() {
+            let inst = &instances[scan];
 
             if !is_eligible(
                 inst,
@@ -154,7 +146,7 @@ pub fn solve_max_score(candidates: Vec<FanInstance>) -> Vec<FanResult> {
                 bridge_count,
             });
 
-            path.push(inst_id);
+            path.push(scan);
             used_keys.push((
                 inst.fan_type,
                 inst.uses_pair,
@@ -219,14 +211,7 @@ pub fn solve_max_score(candidates: Vec<FanInstance>) -> Vec<FanResult> {
         .map(|bp| {
             let fans: Vec<FanInstance> = bp
                 .into_iter()
-                .map(|id| {
-                    let inst = &instances[id];
-                    FanInstance {
-                        fan_type: inst.fan_type,
-                        used_set_mask: inst.used_set_mask,
-                        uses_pair: inst.uses_pair,
-                    }
-                })
+                .map(|id| instances[id])
                 .collect();
             // Deduplicate — the search kernel prevents identical dedup keys
             // from being selected in one path, but different paths
@@ -259,24 +244,6 @@ mod tests {
         used_set_mask: u64,
         uses_pair: bool,
     ) -> FanInstance {
-        let mut excludes_mask = FanExclusionSet::default();
-        match fan_type {
-            FanType::BigFourWinds => {
-                excludes_mask.set_bit(FanType::AllPungs.bit_index());
-                excludes_mask.set_bit(FanType::LittleFourWinds.bit_index());
-            }
-            FanType::LittleFourWinds => {
-                excludes_mask.set_bit(FanType::BigFourWinds.bit_index());
-            }
-            FanType::AllHonors => {
-                excludes_mask
-                    .set_bit(FanType::AllTerminalsAndHonors.bit_index());
-            }
-            FanType::AllTerminalsAndHonors => {
-                excludes_mask.set_bit(FanType::AllHonors.bit_index());
-            }
-            _ => {}
-        }
         FanInstance {
             fan_type,
             used_set_mask,
@@ -316,9 +283,10 @@ mod tests {
 
     #[test]
     fn test_solve_max_score_excludes() {
+        // BigFourWinds (88) excludes BigThreeWinds (12) per macro definition
         let results = solve_max_score(vec![
             candidate(FanType::BigFourWinds, 0b1111, false),
-            candidate(FanType::LittleFourWinds, 0b0111, true),
+            candidate(FanType::BigThreeWinds, 0b0111, true),
         ]);
         assert_eq!(results[0].total_score(), 88);
         assert_eq!(results[0].fans.len(), 1);
@@ -327,13 +295,14 @@ mod tests {
 
     #[test]
     fn test_solve_max_score_excludes_reverse() {
+        // AllTerminalsAndHonors (32) excludes AllPungs (6) per macro definition
         let results = solve_max_score(vec![
+            candidate(FanType::AllPungs, 0b1111, true),
             candidate(FanType::AllTerminalsAndHonors, 0b1111, true),
-            candidate(FanType::AllHonors, 0b1111, true),
         ]);
-        assert_eq!(results[0].total_score(), 64);
+        assert_eq!(results[0].total_score(), 32);
         assert_eq!(results[0].fans.len(), 1);
-        assert_eq!(results[0].fans[0].fan_type, FanType::AllHonors);
+        assert_eq!(results[0].fans[0].fan_type, FanType::AllTerminalsAndHonors);
     }
 
     #[test]
