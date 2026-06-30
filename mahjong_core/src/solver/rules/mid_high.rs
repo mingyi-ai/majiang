@@ -11,7 +11,7 @@ use super::helpers::{
     MeldKind, all_in_range, cand, is_chow, is_even_rank, is_honor_tile,
     is_pung_or_kong, is_terminal_tile, meld_info, pair_info, rank_of,
 };
-use super::{FanCandidate, FanType};
+use super::{FanInstance, FanType};
 use crate::solver::{DecomposeResult, Decomposition};
 use crate::structs::Tile;
 
@@ -22,7 +22,7 @@ pub(crate) fn four_shifted_chows(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -73,7 +73,7 @@ pub(crate) fn three_kongs(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -96,7 +96,7 @@ pub(crate) fn all_terminals_and_honors(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -117,7 +117,7 @@ pub(crate) fn seven_pairs(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -133,7 +133,7 @@ pub(crate) fn all_even_pungs(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -155,7 +155,7 @@ pub(crate) fn full_flush(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -182,7 +182,7 @@ pub(crate) fn pure_triple_chow(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -218,7 +218,7 @@ pub(crate) fn pure_shifted_pungs(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -260,7 +260,7 @@ pub(crate) fn upper_tiles(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -290,7 +290,7 @@ pub(crate) fn middle_tiles(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -320,7 +320,7 @@ pub(crate) fn lower_tiles(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -352,7 +352,7 @@ pub(crate) fn pure_straight(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -393,7 +393,7 @@ pub(crate) fn three_suited_terminal_chows(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -440,7 +440,7 @@ pub(crate) fn pure_shifted_chows(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -485,7 +485,7 @@ pub(crate) fn all_fives(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -510,7 +510,7 @@ pub(crate) fn triple_pung(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -545,7 +545,7 @@ pub(crate) fn three_concealed_pungs(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],

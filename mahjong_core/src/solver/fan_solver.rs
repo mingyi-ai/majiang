@@ -1,22 +1,12 @@
 use crate::solver::{
     FanInstance, FanResult,
-    rules::{FanCandidate, FanExclusionSet, FanType},
+    rules::{FanExclusionSet, FanType},
 };
 
 /// Dedup key: (fan_type, uses_pair, used_set_mask).
 /// Two candidates with the same triple are the same fan instance
 /// under MCR's non-repeat principle and cannot both be selected.
 type DedupKey = (FanType, bool, u64);
-
-/// Preprocessed candidate instance for the search.
-/// Score is derived from fan_type.points(), not stored separately.
-#[derive(Debug, Clone)]
-struct SearchInstance {
-    fan_type: FanType,
-    used_set_mask: u64,
-    uses_pair: bool,
-    excludes_mask: FanExclusionSet,
-}
 
 /// A frame on the explicit DFS stack.
 struct Frame {
@@ -32,22 +22,13 @@ struct Frame {
 // ── Search space construction ──
 
 struct SearchSpace {
-    instances: Vec<SearchInstance>,
+    instances: Vec<FanInstance>,
     order: Vec<usize>, // sorted by (-points, index) for deterministic pruning
 }
 
 impl SearchSpace {
-    fn build(candidates: Vec<FanCandidate>) -> Self {
-        let instances: Vec<SearchInstance> = candidates
-            .into_iter()
-            .map(|c| SearchInstance {
-                fan_type: c.fan_type,
-                used_set_mask: c.used_set_mask,
-                uses_pair: c.uses_pair,
-                excludes_mask: c.excludes_mask,
-            })
-            .collect();
-
+    fn build(candidates: Vec<FanInstance>) -> Self {
+        let instances = candidates;
         let mut order: Vec<usize> = (0..instances.len()).collect();
         order.sort_by_key(|&i| {
             let inst = &instances[i];
@@ -70,7 +51,7 @@ impl SearchSpace {
 ///      single-set fans (mask has 1 bit) are exempt — they don't combine sets.
 #[inline]
 fn is_eligible(
-    inst: &SearchInstance,
+    inst: &FanInstance,
     excluded_mask: FanExclusionSet,
     max_allowed_score: u8,
     used_keys: &[DedupKey],
@@ -120,7 +101,7 @@ fn dedup_key_of(inst: &FanInstance) -> DedupKey {
 /// (scores must be non-increasing) eliminates redundant permutations.
 ///
 /// Returns all solutions achieving the maximum score (ties).
-pub fn solve_max_score(candidates: Vec<FanCandidate>) -> Vec<FanResult> {
+pub fn solve_max_score(candidates: Vec<FanInstance>) -> Vec<FanResult> {
     if candidates.is_empty() {
         return vec![FanResult::default()];
     }
@@ -180,8 +161,9 @@ pub fn solve_max_score(candidates: Vec<FanCandidate>) -> Vec<FanResult> {
                 inst.used_set_mask,
             ));
 
-            excluded_mask =
-                FanExclusionSet(excluded_mask.0 | inst.excludes_mask.0);
+            excluded_mask = FanExclusionSet(
+                excluded_mask.0 | inst.fan_type.excludes_mask().0,
+            );
             max_allowed_score = inst.fan_type.points();
             total_score += inst.fan_type.points() as u16;
 
@@ -276,7 +258,7 @@ mod tests {
         fan_type: FanType,
         used_set_mask: u64,
         uses_pair: bool,
-    ) -> FanCandidate {
+    ) -> FanInstance {
         let mut excludes_mask = FanExclusionSet::default();
         match fan_type {
             FanType::BigFourWinds => {
@@ -295,12 +277,10 @@ mod tests {
             }
             _ => {}
         }
-        FanCandidate {
+        FanInstance {
             fan_type,
             used_set_mask,
             uses_pair,
-            score: fan_type.points(),
-            excludes_mask,
         }
     }
 

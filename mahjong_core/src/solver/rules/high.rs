@@ -9,7 +9,7 @@ use super::helpers::{
     MeldKind, cand, is_chow, is_green_tile, is_pung_or_kong, is_terminal_tile,
     meld_info, pair_info, rank_of, suit_of,
 };
-use super::{FanCandidate, FanType};
+use super::{FanInstance, FanType};
 use crate::solver::{DecomposeResult, Decomposition};
 use crate::structs::Tile;
 
@@ -20,7 +20,7 @@ pub(crate) fn big_four_winds(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -45,7 +45,7 @@ pub(crate) fn big_three_dragons(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -67,7 +67,7 @@ pub(crate) fn all_green(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -103,7 +103,7 @@ pub(crate) fn nine_gates(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -161,7 +161,7 @@ pub(crate) fn four_kongs(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -186,7 +186,7 @@ pub(crate) fn seven_shifted_pairs(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -213,7 +213,7 @@ pub(crate) fn thirteen_orphans(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     if matches!(decomp.decompositions, Decomposition::ThirteenOrphans { .. }) {
         vec![cand(FanType::ThirteenOrphans, 0, true)]
     } else {
@@ -228,7 +228,7 @@ pub(crate) fn all_terminals(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -262,7 +262,7 @@ pub(crate) fn little_four_winds(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -297,7 +297,7 @@ pub(crate) fn little_three_dragons(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -327,7 +327,7 @@ pub(crate) fn all_honors(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -345,7 +345,7 @@ pub(crate) fn four_concealed_pungs(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -369,7 +369,7 @@ pub(crate) fn pure_terminal_chows(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -404,7 +404,7 @@ pub(crate) fn quadruple_chow(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -448,7 +448,7 @@ pub(crate) fn four_pure_shifted_pungs(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],

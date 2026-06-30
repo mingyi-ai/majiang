@@ -11,7 +11,7 @@ use super::helpers::{
     MeldKind, cand, is_chow, is_honor_tile, is_melded_kong, is_pung_or_kong,
     is_terminal_tile, is_wind_tile, meld_info, pair_info, rank_of,
 };
-use super::{FanCandidate, FanType};
+use super::{FanInstance, FanType};
 use crate::solver::{DecomposeResult, Decomposition};
 
 // ── 4 points ──────────────────────────────────────────────────
@@ -21,7 +21,7 @@ pub(crate) fn outside_hand(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -52,7 +52,7 @@ pub(crate) fn fully_concealed(
     static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     if static_ctx.is_fully_concealed {
         vec![cand(FanType::FullyConcealed, 0, true)]
     } else {
@@ -65,7 +65,7 @@ pub(crate) fn two_melded_kongs(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -85,7 +85,7 @@ pub(crate) fn last_tile(
     static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     if static_ctx.is_last_tile_of_kind {
         vec![cand(FanType::LastTile, 0, false)]
     } else {
@@ -100,7 +100,7 @@ pub(crate) fn dragon_pung(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -124,7 +124,7 @@ pub(crate) fn prevalent_wind(
     static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -146,7 +146,7 @@ pub(crate) fn seat_wind(
     static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -168,7 +168,7 @@ pub(crate) fn concealed_hand(
     static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     if static_ctx.is_concealed && static_ctx.win_method == WinMethod::Discard {
         vec![cand(FanType::ConcealedHand, 0, false)]
     } else {
@@ -181,7 +181,7 @@ pub(crate) fn all_chows(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -199,7 +199,7 @@ pub(crate) fn tile_hog(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -248,7 +248,7 @@ pub(crate) fn double_pung(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -280,7 +280,7 @@ pub(crate) fn two_concealed_pungs(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -299,7 +299,7 @@ pub(crate) fn concealed_kong(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -325,7 +325,7 @@ pub(crate) fn all_simples(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -350,7 +350,7 @@ pub(crate) fn pure_double_chow(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -382,7 +382,7 @@ pub(crate) fn mixed_double_chow(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -414,7 +414,7 @@ pub(crate) fn short_straight(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -449,7 +449,7 @@ pub(crate) fn two_terminal_chows(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -493,7 +493,7 @@ pub(crate) fn pung_of_terminals_or_honors(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -520,7 +520,7 @@ pub(crate) fn melded_kong(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -544,7 +544,7 @@ pub(crate) fn one_voided_suit(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     let (pair, sets) = match &decomp.decompositions {
         Decomposition::Standard { pair, sets } => (pair, sets),
         _ => return vec![],
@@ -571,7 +571,7 @@ pub(crate) fn no_honors(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     if false {
         vec![cand(FanType::NoHonors, 0, true)]
     } else {
@@ -584,7 +584,7 @@ pub(crate) fn edge_wait(
     static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     if wait_type == WaitType::Edge {
         vec![cand(FanType::EdgeWait, 0, false)]
     } else {
@@ -597,7 +597,7 @@ pub(crate) fn closed_wait(
     static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     if wait_type == WaitType::Closed {
         vec![cand(FanType::ClosedWait, 0, false)]
     } else {
@@ -610,7 +610,7 @@ pub(crate) fn single_wait(
     static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     if wait_type == WaitType::Single {
         vec![cand(FanType::SingleWait, 0, false)]
     } else {
@@ -623,7 +623,7 @@ pub(crate) fn self_drawn(
     static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     if static_ctx.win_method == WinMethod::SelfDraw {
         vec![cand(FanType::SelfDrawn, 0, true)]
     } else {
@@ -636,7 +636,7 @@ pub(crate) fn flower_tiles(
     static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     if static_ctx.flower_count > 0 {
         vec![cand(FanType::FlowerTiles, 0, false)]
     } else {

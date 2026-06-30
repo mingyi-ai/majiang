@@ -1,3 +1,4 @@
+use super::FanInstance;
 use super::{DecomposeResult, DynamicFanContext, StaticFanContext, WaitType};
 
 // ============================================================================
@@ -10,7 +11,7 @@ pub(crate) type RuleFn = fn(
     &StaticFanContext,
     &DynamicFanContext,
     WaitType,
-) -> Vec<FanCandidate>;
+) -> Vec<FanInstance>;
 
 // ============================================================================
 // Macro: mcr_rules! — single-source rule registry for all 81 MCR fan types
@@ -19,7 +20,7 @@ pub(crate) type RuleFn = fn(
 //   - FanType enum (81 variants, #[repr(u16)], discriminants 0..80)
 //   - impl FanType { fn points(), fn name(), fn excludes_mask(), fn bit_index() }
 //   - RuleEntry struct + const ALL_RULES
-//   - fn check_all(profile, ctx) -> Vec<FanCandidate>
+//   - fn check_all(profile, ctx) -> Vec<FanInstance>
 // ============================================================================
 
 macro_rules! mcr_rules {
@@ -94,22 +95,18 @@ macro_rules! mcr_rules {
             $( RuleEntry { fan_type: FanType::$name, check: $check }, )*
         ];
 
-        /// Run all registered rules against a decomposition profile and context.
+        /// Run all registered rules against a decomposition and context.
         /// Returns candidates with precomputed exclusion masks.
         pub(crate) fn check_all(
             decomp: &DecomposeResult,
             static_ctx: &StaticFanContext,
             dynamic_ctx: &DynamicFanContext,
             wait_type: WaitType,
-        ) -> Vec<FanCandidate> {
+        ) -> Vec<FanInstance> {
             ALL_RULES
                 .iter()
                 .flat_map(|entry| {
-                    let candidates = (entry.check)(decomp, static_ctx, dynamic_ctx, wait_type);
-                    candidates.into_iter().map(|mut c| {
-                        c.excludes_mask = entry.fan_type.excludes_mask();
-                        c
-                    })
+                    (entry.check)(decomp, static_ctx, dynamic_ctx, wait_type)
                 })
                 .collect()
         }
@@ -510,22 +507,9 @@ mcr_rules! {
 pub struct FanExclusionSet(pub u128);
 
 impl FanExclusionSet {
-    #[inline]
     pub fn set_bit(&mut self, bit: usize) {
         self.0 |= 1u128 << bit;
     }
-}
-
-/// A candidate fan instance extracted from a decomposition.
-#[derive(Debug, Clone)]
-pub struct FanCandidate {
-    pub fan_type: FanType,
-    /// Which sets this fan uses (bit 0 = sets[0], etc.).
-    pub used_set_mask: u64,
-    /// Whether the pair is involved.
-    pub uses_pair: bool,
-    pub score: u8,
-    pub excludes_mask: FanExclusionSet,
 }
 
 // ============================================================================
@@ -538,7 +522,7 @@ pub(crate) fn empty_rule(
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
-) -> Vec<FanCandidate> {
+) -> Vec<FanInstance> {
     vec![]
 }
 

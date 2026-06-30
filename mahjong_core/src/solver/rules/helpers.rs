@@ -6,10 +6,10 @@
 //   - meld_info(), pair_info() — converters from Meld/Pair
 //   - Tile attribute helpers — rank_of, suit_of, is_terminal_tile, etc.
 //   - Meld predicate helpers — is_pung_or_kong, is_chow, is_melded_kong
-//   - cand() — FanCandidate factory
+//   - cand() — FanInstance factory
 // ═══════════════════════════════════════════════════════════════
 
-use super::{FanCandidate, FanType};
+use super::{FanInstance, FanType};
 use crate::structs::{Meld, Pair, Tile};
 
 // ── Meld metadata types ────────────────────────────────────────
@@ -235,7 +235,7 @@ pub(crate) fn is_chow(m: &Meld) -> bool {
     matches!(meld_info(m).kind, MeldKind::Chow)
 }
 
-// ── FanCandidate factory ───────────────────────────────────────
+// ── FanInstance factory ───────────────────────────────────────
 
 /// Check if all melds and the pair satisfy a rank range.
 pub(crate) fn all_in_range(
@@ -253,14 +253,12 @@ pub(crate) fn all_in_range(
     }
 }
 
-/// Create a FanCandidate with score set from FanType points.
+/// Create a SearchInstance for a detected fan.
 #[inline]
-pub(crate) fn cand(ft: FanType, mask: u64, uses_pair: bool) -> FanCandidate {
-    FanCandidate {
+pub(crate) fn cand(ft: FanType, mask: u64, uses_pair: bool) -> FanInstance {
+    FanInstance {
         fan_type: ft,
         used_set_mask: mask,
         uses_pair,
-        score: ft.points(),
-        excludes_mask: Default::default(),
     }
 }
