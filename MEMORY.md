@@ -30,21 +30,20 @@ lib.rs
 │   ├── hand.rs     // Hand, BitTileCounts (rows: [u64; 4])
 │   └── sets.rs     // Meld, Sequence, Triplet, Quad, Pair
 └── solver/         // hu detection + decomposition + fan scoring
-    ├── mod.rs                  ← NEW orchestration stubs (lazy iterators, StaticFanContext+DynamicFanContext)
-    ├── decompose_standard.rs   ← OLD active DFS implementation (has #[cfg(test)])
-    ├── decompose_special.rs    ← OLD active special hand detection
-    ├── fan_solver.rs           ← OLD active search kernel (commented out in mod.rs)
-    ├── mcr_tests.rs            ← OLD active 2448-line integration tests
+    ├── mod.rs                  → orchestration: solve_fan, is_hu, decompose_hand, score_decomposition
+    ├── decompose_standard.rs   → standard suit/honor DFS decomposition
+    ├── decompose_special.rs    → special hand detection (seven pairs, thirteen orphans)
+    ├── fan_solver.rs           → search kernel: solve_max_score (DFS + exclusion check)
     └── rules/
-        ├── mod.rs              ← MACRO-GENERATED FanType + rule registry (mcr_rules!)
-        │                          HandProfile (re-exported from profile.rs)
-        │                          FanExclusionSet + FanCandidate (supporting types)
-        ├── profile.rs          ← HandProfile (moved from view.rs)
-        ├── helpers.rs          ← cand(), meld predicates (commented out, broken paths)
-        ├── high.rs             ← 88/64/48pt rule check functions (commented out, broken paths)
-        ├── mid_high.rs         ← 32/24/16pt rule check functions (commented out, broken paths)
-        ├── mid_low.rs          ← 12/8/6pt rule check functions (commented out, broken paths)
-        └── low.rs              ← 4/2/1pt rule check functions (commented out, broken paths)
+        ├── mod.rs              → mcr_rules! macro: generates FanType, impl, ALL_RULES, check_all
+        │                          FanExclusionSet, FanCandidate, RuleFn, empty_rule stub
+        ├── profile.rs          → HandProfile: pre-computed decomposition view for rule checking
+        ├── helpers.rs          → cand(), meld predicates (is_pung_or_kong, is_chow, etc.)
+        ├── test_helpers.rs     → concealed_hand, declared_hand, solve_default, assertion helpers
+        ├── high.rs             → 88/64/48pt rule check functions + 23 tests
+        ├── mid_high.rs         → 32/24/16pt rule check functions + 33 tests
+        ├── mid_low.rs          → 12/8/6pt rule check functions + 32 tests
+        └── low.rs              → 4/2/1pt rule check functions + 38 tests
 ```
 
 ## Layer breakdown
@@ -58,202 +57,199 @@ lib.rs
 - `GameEvent` — `DrawTile { seat, tile }` | `Action(PlayerAction)`
 - `Wind` — `East`, `South`, `West`, `North`
 
+### Solver public API
+- `solve_fan(hand, &StaticFanContext, &DynamicFanContext) -> Result<Vec<FanResult>, SolverError>`
+- `FanResult { fans: Vec<FanInstance> }`, `FanInstance { fan_type: FanType, score, used_set_mask, uses_pair }`
+- `StaticFanContext` (seat wind, prevalent wind, win method, winning tile, flower count, concealment flags, last tile flags)
+- `DynamicFanContext` (kong replacement flag, rob kong flag)
+
 ### Engine — Game driver
 Borrows `[&'a Player; 4]`. Drives the loop, handles auto-advance, validates plays.
 
-```rust
-Engine::new(wind, turn, [&players; 4], &mut rng)
-engine.run(on_initial_deal, on_game_event) -> Result<EngineOutput, EngineError>
-```
-
-Key invariants:
-- `None` from `apply()` means internal mechanics (Skip, reaction all-skip). Not reported.
-- `GameEvent::Action(PlayerAction::Skip { .. })` is never constructed.
-
 ### round/ — Pure state machine
-- `State::new_shuffled(wind, turn, rng)` — shuffle wall, empty hands
-- `State::query()` → read-only peek (`Output`)
-- `State::apply(Input) -> Option<GameEvent>` — mutate, return event or None
-- `State::deal()` → alternating East→South→West→North with immediate flower replacement
-
-Phase transitions:
-```
-RequestDrawTile → Apply(DrawTile) → RequestSelfAction (non-flower) or RequestDrawTile (flower)
-RequestSelfAction → Apply(SelfAction) → RequestDrawTile (kong/hu) or RequestDiscard (skip)
-RequestDiscard → Apply(Discard) → RequestReaction(tile)
-RequestReaction → Apply(Reactions) → RequestDiscard (winner) or RequestDrawTile (all skip/kong)
-```
+Standard MCR phase transitions: DrawTile → SelfAction → Discard → Reaction → ...
 
 ### structs/ — Domain primitives
-- `Wind`: East/South/West/North, `next()`, `iter()`
-- `Wall`: `[Tile; 144]` with `pointer: usize` + shuffle + yield_tile
-- `Tile`: 42 variants (34 non-flower + 8 flower), sparse 4-bit-gap encoding
-- `BitTileCounts`: `[u64; 4]` — 4 rows × 64 bits, LSB-fill counting
-- `Hand`: `Copy`. concealed (BitTileCounts) + melds `ArrayVec<Meld, 4>` + flower_count
-- `Meld`: flat enum over Sequence/Triplet/Quad structs
+- `Wind`, `Wall`, `Tile` (42 variants, sparse 4-bit-gap encoding), `BitTileCounts` (`[u64; 4]`)
+- `Hand`: `Copy` — concealed (`BitTileCounts`) + melds (`ArrayVec<Meld, 4>`) + flower_count
+- `Meld`: flat enum over Sequence/Triplet/Quad
 
-### solver/ — Three-layer transitional architecture
+### solver/ — Pipeline architecture
 
-The solver is mid-refactor. Three code layers coexist:
-
-**Layer 1 — NEW stubs (solver/mod.rs):**
-- `solve_fan` — pipeline: decompose → flat_map score → keep_highest_score
-- `decompose_hand` → returns `Result<impl Iterator<Item = DecomposeResult>>` (lazy)
-- `score_decomposition` → stub, returns `Vec<FanResult>`
-- `keep_highest_score` → consumes iterator, O(n) single-pass max tracking
-- `is_hu` → short-circuits on first decomposition via `iter.next().is_some()`
-- Context split: `StaticFanContext` (per-deal constants) + `DynamicFanContext` (per-hand events)
-- `Decomposition` enum defined inline (Standard, SevenPairs, ThirteenOrphans)
-
-**Layer 2 — OLD active code (decompose_standard.rs, decompose_special.rs):**
-- Full DFS decomposition for standard hands (suit-by-suit, Cartesian product)
-- SevenPairs and ThirteenOrphans detection (complete, tested)
-- These are functional but NOT wired to the new mod.rs stubs yet
-
-**Layer 3 — OLD rule code with broken paths (rules/*.rs, fan_solver.rs, mcr_tests.rs):**
-- 81 rule check functions exist across high/mid_high/mid_low/low (all commented out)
-- `view.rs` contents moved to `rules/profile.rs` with fixed imports
-- Reference types that no longer exist: `FanContext`, `super::super::types::*`
-- `mcr_tests.rs` has 2448 lines of integration tests referencing old types
-- `fan_solver.rs` has the max-score subset search kernel (commented out in mod.rs)
-
-### `array_vec.rs` — generic fixed-capacity vec
-
-```rust
-pub(crate) struct ArrayVec<T: Copy, const N: usize> {
-    data: [MaybeUninit<T>; N],
-    len: usize,
-}
 ```
-
-Used by: `SuitDecomp`, `Hand::melds`, `Decomposition::Standard::sets`.
+solve_fan(hand, static_ctx, dynamic_ctx)
+  │
+  ├─ decompose_hand(hand)
+  │     → decompose_standard (concealed tiles → ConcealedDecompStd)
+  │     → detect_seven_pairs, detect_thirteen_orphans
+  │     → combine with declared melds → Vec<DecomposeResult>
+  │
+  ├─ flat_map lazy iteration
+  │     score_decomposition(decomp, static_ctx, dynamic_ctx)
+  │       ├─ HandProfile::from_decomposition(decomp.decompositions)
+  │       ├─ rules::check_all(profile, static_ctx, dynamic_ctx, wait_type)
+  │       │     → iterates ALL_RULES (81 entries), calls each check fn
+  │       │     → embeds precomputed excludes_mask on each candidate
+  │       ├─ fan_solver::solve_max_score(candidates)
+  │       │     → iterative DFS: exclusion check + sig_key dedup + score monotonicity
+  │       └─ converts FanSolveResult → FanResult
+  │
+  └─ keep_highest_score(results) → Vec<FanResult> (ties kept)
+```
 
 # Important Decisions
 
-## Two-type split: `PlayerAction` + `GameEvent`
-**Why**: The old flat `Event` mixed two roles. `DrawTile` and internal mechanics aren't player choices.
+## Macro-generated rule registry (`mcr_rules!`)
+**Why**: Eliminated 81 hand-written const arrays + 81 points() match arms + 81 name() match arms + RuleEntry struct + ALL_RULES table + check_all dispatch. Single source of truth: one macro invocation with 81 entries.
 
-## `State::apply` returns `Option<GameEvent>`
-**Why**: Event feed contains only observable table events. Skips are implicit.
+**Exclusion model**: Explicit lists in the macro invocation, extracted from the MCR rulebook. No auto-derivation from structural categories — MCR exclusions are semantic, not structural (many pairs that logically could coexist are excluded by rulebook flat, and vice versa). A `#[cfg(test)]` symmetry check verifies bidirectionality.
 
-## Alternating deal sequence
-**Why**: Mirrors real mahjong dealing procedure.
+**Why not a category-based system**: The MCR rulebook does not define STRUCTURAL/ENVIRONMENTAL/GLOBAL categories. Attempting to derive exclusions from set-mask subset relationships would produce incomplete results — the rulebook's explicit "does not combine with" lists are the authoritative source.
 
-## Engine borrows Players (`[&'a P; 4]`)
-**Why**: Same players reused across rounds without cloning.
+## No unified `FanContext`
+**Why**: `StaticFanContext` (per-hand constants: seat wind, concealment, win method) and `DynamicFanContext` (per-event flags: kong replacement, rob kong) come from different sources and have different lifetimes. A unified wrapper would obscure this.
 
-## Two callbacks in `run()`: `on_initial_deal` + `on_event`
-**Why**: Deal events are private per-player; game events are public.
-
-## Explicit RNG threading
-**Why**: Caller controls determinism.
-
-## Lazy iterator pipeline for score search
-`decompose_hand` returns `impl Iterator<Item = DecomposeResult>`. The pipeline chains with `flat_map` (score each decomposition) and a consuming `keep_highest_score`. No intermediate `Vec<DecomposeResult>` or `Vec<Vec<FanResult>>` is materialized. See `solver/mod.rs`.
-
-**Why**: Consistent with Rust's standard lazy iteration model. No external crate needed. Reduces allocation pressure for hands with many decompositions.
+## `WaitType` as a separate parameter to rule functions
+**Why**: Wait type is per-decomposition, not per-hand. It's known only after `decompose_hand` yields a result. Not absorbed into either context.
 
 ## `keep_highest_score` as a single-pass fold
-Consumes `impl Iterator<Item = FanResult>`, tracks `Option<(Vec<FanResult>, u8)>`, folds with `score.cmp(&best_score)`, returns all ties. O(n) without re-computing `total_score()` on the best-so-far.
+Consumes `impl Iterator<Item = FanResult>`, folds with `score.cmp(&best_score)`, returns all ties. O(n).
 
-## `Decomposition` enum inline in mod.rs (not separate file)
-**Why**: The enum is the target type for decomposition output and the input to scoring. Keep it close to the orchestration that creates and consumes it.
+## Lazy iterator pipeline
+`decompose_hand` returns `impl Iterator<Item = DecomposeResult>`. Pipeline chains with `flat_map` and a consuming `keep_highest_score`.
 
-## Context split: StaticFanContext vs DynamicFanContext
-**Why**: `StaticFanContext` (seat wind, prevalent wind, hand properties) is invariant across all decompositions of a hand. `DynamicFanContext` (kong replacement, rob kong) is event-specific. Separating them makes the rule interface explicit about what changes per decomposition vs per hand.
+## HandProfile in rules/profile.rs (not solver/view.rs)
+**Why**: `HandProfile` converts `Decomposition` into a flat accessor for rule checking. It has exactly one consumer: the 81 rule functions. Co-located.
 
-## `HandProfile` lives in `rules/profile.rs` (moved from view.rs)
-**Why**: `HandProfile` converts `Decomposition` into a flat accessor for rule checking. It has exactly one consumer: the 81 rule functions. Moving to `rules/profile.rs` co-locates it with its consumers and gives a descriptive name. Import path: `use crate::solver::rules::HandProfile;`. The old `solver/view.rs` is kept as a dead file for now (its contents migrated to profile.rs with imports fixed).
+## The Five MCR Scoring Principles (fan(x,y) notation)
 
-## Tests co-located with rules (desired, not yet done)
-Each rule file should have `#[cfg(test)] mod tests { ... }` with its rule's test cases. Shared helpers (hand builders, context builder, assertion fns) go in `rules/test_helpers.rs`. The 2448-line `mcr_tests.rs` is the consolidation target — it will be deleted once migration is complete.
+We model each fan as operating on a set of melds indexed 0..n. Notation:
 
-# Solver Architecture — Macro-Generated Rule Registry
+| Term | Meaning | Example fan | `used_set_mask` |
+|---|---|---|---|
+| `fan(A)` | Single-set — evaluates one meld against context | `SeatWind(0)` | `0b0001` |
+| `fan(A, B)` | Structural — combines two melds | `PureDoubleChow(0,1)` | `0b0011` |
+| `fan(A, B, C)` | Structural — combines three melds | `PureTripleChow(0,1,2)` | `0b0111` |
+| `fan(∅)` | Hand-property — no melds consumed | `AllChows` | `0` |
 
-## `mcr_rules!` macro (IMPLEMENTED)
+Fans with `popcount(used_set_mask) ≥ 2` are **structural** and subject to Account-Once
+bridging. Popcount < 2 or mask = 0 are exempt.
 
-The old commented-out design required three touchpoints per rule. This has been replaced by a single `mcr_rules!` macro invocation in `rules/mod.rs`. Syntax:
+---
 
-```rust
-mcr_rules! {
-    BigFourWinds(88) / "Big Four Winds"
-        excludes [BigThreeWinds, AllPungs, PrevalentWind, SeatWind, PungOfTerminalsOrHonors]
-        => empty_rule,  // change to high::big_four_winds when module is activated
-    // ... all 81 ...
-}
-```
+### Principle 1: Non-Repeat (Implication Exclusion)
 
-This macro expands to:
-- `FanType` enum (81 variants, `#[repr(u16)]`, compiler-assigned discriminants 0..80), `pub`
-- `impl FanType { fn points(), fn name(), fn excludes_mask(), fn bit_index() }`
-- `pub(crate) struct RuleEntry { fan_type: FanType, check: RuleFn }`
-- `pub(crate) const ALL_RULES: &[RuleEntry]` — point-descending registration order
-- `pub(crate) fn check_all(profile, static_ctx, dynamic_ctx) -> Vec<FanCandidate>`
+**Rule**: If fan P structurally implies fan Q, Q cannot be scored alongside P.  
+**Enforced by**: `excludes_mask` in `mcr_rules!`.
 
-**What was eliminated:**
-- 81 hand-written `const X_EXCLUDES` arrays in old rule files
-- 81 hand-written `fn points()` match arms in the old FanType impl
-- 81 hand-written `fn name()` match arms in the old FanType impl
-- Old `struct RuleEntry` and `const ALL_RULES` array (commented-out code deleted)
-- The old `check_all` dispatch function
-- Manual sync between excludes in rule file vs registry
-- The `FanContext` aggregate is NOT used — rule functions take `(&StaticFanContext, &DynamicFanContext)` separately
+| Scenario | Result | Why |
+|---|---|---|
+| `QuadrupleChow(0,1,2,3) + PureDoubleChow(0,1)` | ✗ | QuadrupleChow's {0,1,2,3} ⊇ PureDoubleChow's {0,1} |
+| `PureTripleChow(0,1,2) + PureDoubleChow(0,1)` | ✗ | Structural subset |
+| `BigFourWinds(0,1,2,3) + LittleFourWinds(0,1,2)` | ✗ | Structural subset |
+| `BigThreeDragons(0,1,2,3) + DragonPung(0)` | ✗ | BigThreeDragons inherently contains three dragon pungs |
+| `AllTerminalsAndHonors(∅) + AllTerminals(∅)` | ✗ | Hand-property subset: AllT&H implies AllTerminals |
 
-**Why a declarative macro instead of proc-macro:**
-- No extra dependency (no proc-macro crate)
-- `macro_rules!` is sufficient — generating structured code from a flat list
-- Rust assigns 0..N for fieldless enums, so `#[repr(u16)]` gives us bit indices for free
-- Exclusion masks precomputed as `u128` bit arrays via `FanExclusionSet::set_bit()` in generated match arms
+Some exclusions are pure rulebook declarations (e.g., `BigFourWinds` excludes `AllPungs`)
+with no structural basis — these must be enumerated in the macro. Most structural
+subset exclusions are auto-derivable but listed explicitly for defense-in-depth.
 
-**Activation workflow:**
-Currently all 81 rules are stubbed with `empty_rule` (returns `vec![]`). To activate a rule:
-1. Uncomment `mod high;` (etc.) in the submodules section
-2. Fix import paths in the activated module
-3. Change the check function path in the `mcr_rules!` invocation from `empty_rule` to `high::big_four_winds`
+---
 
-## FanCandidate exclusivity model
+### Principle 2: Non-Separation (Unbreakable Sets)
 
-`FanCandidate` carries `excludes_mask: FanExclusionSet`. The `check_all` function sets this mask from the precomputed `FanType::excludes_mask()`. The search kernel (`fan_solver.rs`) accumulates an `excluded_mask` as it selects candidates in score-descending order.
+**Rule**: A meld cannot be split into smaller units to claim additional fans.  
+**Enforced by**: The hand parser — each segmentation is an independent branch.
 
-## No FanContext aggregate (deliberate)
+| Scenario | Result | Why |
+|---|---|---|
+| Pung of East → `SeatWind` + `PungOfTerminals` | ✓ | Pung stays intact for both calculations |
+| 4 identical tiles → 2 pairs + 1 pung | ✗ | Would require splitting tiles across meld boundaries. Parser produces one valid segmentation per branch |
 
-Rule functions take `(&StaticFanContext, &DynamicFanContext)` separately. No unified wrapper. These contexts come from different sources and have different responsibilities — `StaticFanContext` is invariant per hand, `DynamicFanContext` is event-specific.
+---
 
-## RuleFn type signature
+### Principle 3: Non-Identical (No Double-Counting)
 
-```rust
-pub(crate) type RuleFn = fn(&HandProfile, &StaticFanContext, &DynamicFanContext) -> Vec<FanCandidate>;
-```
+**Rule**: The same fan instance cannot appear twice.  
+**Enforced by**: `sig_key` dedup (`fan_type | uses_pair | used_set_mask`).
+
+| Scenario | Result |
+|---|---|
+| Two `cand(AllPungs, 0, true)` from same check | ✗ Second rejected (identical sig_key) |
+| Same `AllPungs` candidate from different passes | ✗ Same sig_key regardless of source |
+
+---
+
+### Principle 4: Free Choice (Highest Score)
+
+**Rule**: Choose the highest-scoring configuration. Ties keep all.  
+**Enforced by**: `keep_highest_score` + DFS search kernel.
+
+---
+
+### Principle 5: Account-Once (Bridge Counter)
+
+**Rule**: Each meld can bridge from already-used sets to remaining new sets at most once.  
+**Enforced by**: `bridge_count: [u8; 4]` in `solve_max_score`.
+
+Only structural fans (popcount ≥ 2) trigger this check. Hand-property (mask = 0) and
+single-set (popcount = 1) fans are exempt — they don't combine sets.
+
+| Scenario | Step 1 | Step 2 | Step 3 | Result |
+|---|---|---|---|---|
+| `fan(0,1) + fan(0,2) + fan(0,3)` | Anchor: used={0,1} | Bridge: set0→2. b[0]=1 | Bridge: set0→3. b[0]≥1 → ✗ | ✗ |
+| `fan(0,1) + fan(2,3)` | Anchor: used={0,1} | Disjoint: used={0,1,2,3} | — | ✓ |
+| `fan(0,1) + fan(0,2) + fan(0)` | Anchor: used={0,1} | Bridge: set0→2. b[0]=1 | Single-set fan(0): exempt | ✓ |
+| `fan(0,1) + fan(2,3) + fan(1,2)` | Anchor: used={0,1} | Disjoint: used={0,1,2,3} | Bridge: set1→2, set2→1. Both b=0→1 | ✓ |
+| `fan(0) + fan(1) + fan(0,2)` | Single-set | Single-set | Bridge: {0}→2. b[0]=0→1 | ✓ |
+
+---
+
+### How the constraints interact
+
+| Mechanism | Principle | Auto-derivable? |
+|---|---|---|
+| `excludes_mask` | Non-Repeat + rulebook extras | Partial (subset relationships) |
+| `bridge_count` | Account-Once | Always (structural only) |
+| `sig_key` dedup | Non-Identical | Always |
+| `keep_highest_score` | Free Choice | Always |
+| Multiple segmentations | Non-Separation | Always (parser) |
+
+The `bridge_count` mechanism ensures Account-Once is correct regardless of exclusion list
+completeness. A full audit of the 81 exclusion lists against the MCR rulebook is the top
+priority for correctness.
+
+## `is_hu` swallows `decompose_hand` errors
+`is_hu` converts `Err(InvalidHand)` to `Ok(false)` because callers (round/actions) call `is_hu` on hands in intermediate states. `solve_fan` preserves the original error behavior.
 
 # Known Issues
 
 ## Solver module
 
-### 1. Rule submodules not yet activated
-All 81 rule check functions are stubbed with `empty_rule`. The old rule files (high.rs, mid_high.rs, mid_low.rs, low.rs, helpers.rs) have broken import paths (`super::super::FanContext`, `super::super::types::*`) and are commented out from `rules/mod.rs`. Activating them requires:
-- Fixing imports to use `super::{FanType, FanCandidate, FanExclusionSet}` and `super::profile::*`
-- Changing `FanContext` references to `(&StaticFanContext, &DynamicFanContext)`
+### 1. Exclusion lists have NOT been verified against the MCR rulebook
+The current exclusion lists were extracted from the old `const X_EXCLUDES` arrays in the rule files. These are known to be incomplete. Official MCR "does not combine with" declarations from the rulebook should be cross-referenced and the macro invocation updated.
 
-### 2. No fan extractors wired
-The decomposition engine (decompose_standard.rs) produces `ConcealedDecompStd`, but the new mod.rs defines `Decomposition` and `DecomposeResult` independently. No code translates one to the other, and no code calls the 81 rule check functions.
+### 2. Exclusion symmetry is NOT verified
+A `#[cfg(test)]` test that verifies all exclusion relationships are bidirectional needs to be written.
 
-### 3. Special hands unimplemented
-`SevenPairs` and `ThirteenOrphans` detection exists (decompose_special.rs) but the new mod.rs decompose_hand returns `std::iter::empty()`.
+### 3. Rule check functions are stubs / not yet implemented
+After uncommenting the modules and fixing imports, the check functions contain their original matching logic. However, many may be incomplete or incorrect — they haven't been tested against known hand examples.
 
-### 4. Hu events accepted without minimum fan validation
-Engine currently accepts any Hu without checking MCR 8-point minimum.
+### 4. Wait-type detection is a stub
+`stub_wait_type()` returns `WaitType::Multiple`. The actual algorithm for determining wait type from decomposition is not implemented. This affects 4 rules (edge_wait, closed_wait, single_wait, melded_hand).
 
-### 5. `can_hu()` ignores declared melds
-Delegates to `crate::solver::is_hu(&self.concealed)` which expects 4 sets from concealed tiles. Hands with declared melds are incorrectly rejected.
+### 5. Test coverage is insufficient
+Current test suite: 328 passing, 9 failing. The 9 failures are expected (rule stubs). However, the 328 passing tests are:
+- 211 pre-existing structural tests (decomposition, engine, state machine)
+- 126 migrated integration tests (split from mcr_tests.rs)
 
-### 6. `mcr_tests.rs` is a monolith
-2448 lines of integration tests referencing old types. Must be split into per-rule `#[cfg(test)]` modules and deleted after migration.
+The migrated tests use hand examples from the MCR rulebook but **assert against incomplete rule implementations**. They test that the pipeline doesn't crash, not that correct scores are computed. True test coverage requires reference data from a mature MCR engine.
 
-## Other known issues
-- **No multi-round game coordinator.** Single-round only.
-- **Meld struct types (Sequence, Triplet, Quad) alongside Meld enum** — could inline.
-- **`GameEvent::Action(PlayerAction::Skip)` is inhabited but never constructed.**
-- **`add_to_row` is `pub(crate)` but only used from test code in a different module** — dead code flagged but harmless.
+### 6. Hu validation missing MCR 8-point minimum
+Engine accepts any Hu without checking minimum 8-point requirement.
+
+### 7. `can_hu()` ignores declared melds
+Currently delegates to `crate::solver::is_hu(&self.concealed)` which only sees concealed tiles. Hands with declared melds (e.g., 3 declared + 1 concealed set) are incorrectly rejected.
 
 # Refactoring Completed
 
@@ -266,38 +262,34 @@ Delegates to `crate::solver::is_hu(&self.concealed)` which expects 4 sets from c
 - [x] **Context split** — `StaticFanContext` + `DynamicFanContext` replacing unified `FanContext`
 - [x] **is_hu early exit** — uses `iter.next().is_some()` instead of collecting to Vec
 - [x] **Macro-generated rule registry** — `mcr_rules!` replaces FanType enum + ALL_RULES table + exclusion const arrays (all 81 rules)
-- [x] **HandProfile moved to rules/profile.rs** — fixed imports (`crate::solver::Decomposition`), co-located with consumers
-- [x] **No FanContext aggregate** — rule functions take separated `(&StaticFanContext, &DynamicFanContext)`
-- [x] **RuleFn type alias** — defined as `fn(&HandProfile, &StaticFanContext, &DynamicFanContext) -> Vec<FanCandidate>`
-- [x] **empty_rule stub** — placeholder for unimplemented rules, returns `vec![]`
-- [x] **All 81 exclusion lists extracted and embedded in macro invocation** — verified from source files
-- [x] **All 5 rule submodules activated** — helpers, high, mid_high, mid_low, low
-- [x] **All rule import paths fixed** — `super::super::view::*` → `super::profile::*`, `super::super::FanContext` → `super::super::{StaticFanContext, DynamicFanContext}`, `super::super::types::*` → `super::*`
-- [x] **All 81 rule check functions wired** — `mcr_rules!` invocation updated from `empty_rule` to real paths (`high::big_four_winds`, etc.), except `GreaterHonorsAndKnittedTiles` (not yet implemented)
-- [x] **All rule function signatures updated** — `(&FanContext)` → `(&StaticFanContext, &DynamicFanContext)`, context field accesses updated (`ctx.win_method` → `static_ctx.win_method`, `ctx.is_kong_replacement` → `dynamic_ctx.is_kong_replacement`, etc.)
-- [x] **`wait_type` as separate parameter to `RuleFn`/`check_all`** — per-decomposition, not absorbed into `StaticFanContext`. 4 rules (edge_wait, closed_wait, single_wait, melded_hand) consume it; 77 ignore with `_wait_type`.
+- [x] **HandProfile moved to rules/profile.rs** — fixed imports, co-located with consumers
+- [x] **No FanContext aggregate** — rule functions take `(&StaticFanContext, &DynamicFanContext, WaitType)`
+- [x] **RuleFn type alias** — `fn(&HandProfile, &StaticFanContext, &DynamicFanContext, WaitType) -> Vec<FanCandidate>`
+- [x] **All 81 exclusion lists extracted and embedded in macro invocation**
+- [x] **All 5 rule submodules activated and import paths fixed**
+- [x] **All 81 rule check functions wired** (GreaterHonorsAndKnittedTiles → empty_rule stub)
+- [x] **Full pipeline wired** — decompose_hand → score_decomposition → check_all → solve_max_score
+- [x] **solve_fan made pub** with necessary types pub (StaticFanContext, DynamicFanContext, WinMethod, WaitType, FanInstance fields)
+- [x] **mcr_tests.rs deleted** — 126 tests migrated to per-rule-file `#[cfg(test)]` modules
+- [x] **test_helpers.rs created** — shared test infrastructure
 
 # Remaining Work (prioritized)
 
-1. **Reconcile old rule code paths** — Fix `rules/*.rs` imports to match current module structure. Re-introduce `FanContext` aggregate. Compile view.rs under rules/profile.rs.
+1. **Audit exclusion lists against MCR rulebook** — Cross-reference all 81 "does not combine with" declarations. Add missing exclusions to the `mcr_rules!` invocation.
 
-2. **Activate rule submodules** — Fix imports in high.rs, mid_high.rs, mid_low.rs, low.rs, helpers.rs. Change `FanContext` → `(&StaticFanContext, &DynamicFanContext)`. Wire check functions into the `mcr_rules!` invocation.
+2. **Add exclusion symmetry test** — `#[cfg(test)]` in rules/mod.rs that verifies every exclusion is bidirectional.
 
-3. **Wire decomposition → scoring** — Connect decompose_standard.rs/decompose_special.rs output to the new `DecomposeResult` type, then call `check_all()` + `solve_max_score()`.
+3. **Build comprehensive test suite using reference engine** — Use an existing mature MCR engine as ground truth. For each rule, construct hand examples + expected scores + expected combined fans. Test the full pipeline (solve_fan) against these expectations. This will reveal gaps in both rule implementations and exclusion lists.
 
-4. **Split mcr_tests.rs** — Move tests to per-rule files, create `rules/test_helpers.rs` for shared infrastructure.
+4. **Fix declared meld plumbing** — `can_hu()` should account for declared melds. Currently only checks concealed tiles.
 
-5. **Plumb declared melds** — Pass `n_declared` through the solver pipeline.
+5. **Implement wait-type detection** — Replace `stub_wait_type()` with proper algorithm based on the decomposition structure and winning tile.
 
-6. **Minimum fan validation** — Wire 8-point minimum check in engine Hu acceptance.
+6. **Wire 8-point minimum check** — Engine should reject Hu actions where `solve_fan` returns no result meeting minimum point threshold, or where the highest score is below 8.
 
-7. **Implement special hand detection** — Knitted patterns.
-
-8. **Add symmetry test** — `#[cfg(test)]` that verifies all exclusion relationships are bidirectional.
-
-9. **Delete old view.rs** — Once profile.rs is confirmed working, remove the orphaned `solver/view.rs`.
+7. **Implement special hand detection** — Knitted patterns (GreaterHonorsAndKnittedTiles, LesserHonorsAndKnittedTiles, KnittedStraight).
 
 # Open Questions
 - Should Meld struct types be inlined into the flat Meld enum?
 - `PlayerDecision::Exit` single variant — need `Exit { reason }` for network play?
-- After macro generation, should FanType be `pub` or `pub(crate)`? Currently `pub` (exposed to mahjong_core consumers).
+- Reference engine: which existing MCR implementation to use for test data?

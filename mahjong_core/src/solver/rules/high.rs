@@ -35,13 +35,6 @@ pub(crate) fn big_four_winds(
     }
     vec![]
 }
-pub(crate) const BIG_FOUR_WINDS_EXCLUDES: &[FanType] = &[
-    FanType::BigThreeWinds,
-    FanType::AllPungs,
-    FanType::PrevalentWind,
-    FanType::SeatWind,
-    FanType::PungOfTerminalsOrHonors,
-];
 
 pub(crate) fn big_three_dragons(
     profile: &HandProfile,
@@ -63,8 +56,6 @@ pub(crate) fn big_three_dragons(
     }
     vec![]
 }
-pub(crate) const BIG_THREE_DRAGONS_EXCLUDES: &[FanType] =
-    &[FanType::TwoDragonPungs, FanType::DragonPung];
 
 pub(crate) fn all_green(
     profile: &HandProfile,
@@ -82,7 +73,7 @@ pub(crate) fn all_green(
                 _ => is_green_tile(m.tile),
             }) && is_green_tile(profile.pair.tile);
             if all_green {
-                vec![cand(FanType::AllGreen, 0b1111, true)]
+                vec![cand(FanType::AllGreen, 0, true)]
             } else {
                 vec![]
             }
@@ -97,7 +88,6 @@ pub(crate) fn all_green(
         _ => vec![],
     }
 }
-pub(crate) const ALL_GREEN_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn nine_gates(
     profile: &HandProfile,
@@ -150,16 +140,11 @@ pub(crate) fn nine_gates(
             }
         }
         if diff_count == 1 {
-            return vec![cand(FanType::NineGates, 0b1111, true)];
+            return vec![cand(FanType::NineGates, 0, true)];
         }
     }
     vec![]
 }
-pub(crate) const NINE_GATES_EXCLUDES: &[FanType] = &[
-    FanType::FullFlush,
-    FanType::ConcealedHand,
-    FanType::PungOfTerminalsOrHonors,
-];
 
 pub(crate) fn four_kongs(
     profile: &HandProfile,
@@ -175,7 +160,6 @@ pub(crate) fn four_kongs(
     }
     vec![]
 }
-pub(crate) const FOUR_KONGS_EXCLUDES: &[FanType] = &[FanType::SingleWait];
 
 pub(crate) fn seven_shifted_pairs(
     profile: &HandProfile,
@@ -199,11 +183,6 @@ pub(crate) fn seven_shifted_pairs(
         _ => vec![],
     }
 }
-pub(crate) const SEVEN_SHIFTED_PAIRS_EXCLUDES: &[FanType] = &[
-    FanType::FullFlush,
-    FanType::ConcealedHand,
-    FanType::SingleWait,
-];
 
 pub(crate) fn thirteen_orphans(
     profile: &HandProfile,
@@ -217,11 +196,6 @@ pub(crate) fn thirteen_orphans(
         vec![]
     }
 }
-pub(crate) const THIRTEEN_ORPHANS_EXCLUDES: &[FanType] = &[
-    FanType::AllTypes,
-    FanType::ConcealedHand,
-    FanType::SingleWait,
-];
 
 // ── 64 points ──────────────────────────────────────────────────
 
@@ -239,7 +213,7 @@ pub(crate) fn all_terminals(
             if profile.melds[..n].iter().all(|m| is_terminal_tile(m.tile))
                 && is_terminal_tile(profile.pair.tile)
             {
-                vec![cand(FanType::AllTerminals, 0b1111, true)]
+                vec![cand(FanType::AllTerminals, 0, true)]
             } else {
                 vec![]
             }
@@ -254,12 +228,6 @@ pub(crate) fn all_terminals(
         _ => vec![],
     }
 }
-pub(crate) const ALL_TERMINALS_EXCLUDES: &[FanType] = &[
-    FanType::AllPungs,
-    FanType::OutsideHand,
-    FanType::PungOfTerminalsOrHonors,
-    FanType::NoHonors,
-];
 
 pub(crate) fn little_four_winds(
     profile: &HandProfile,
@@ -294,8 +262,6 @@ pub(crate) fn little_four_winds(
         vec![]
     }
 }
-pub(crate) const LITTLE_FOUR_WINDS_EXCLUDES: &[FanType] =
-    &[FanType::BigThreeWinds, FanType::PungOfTerminalsOrHonors];
 
 pub(crate) fn little_three_dragons(
     profile: &HandProfile,
@@ -325,8 +291,6 @@ pub(crate) fn little_three_dragons(
     }
     vec![]
 }
-pub(crate) const LITTLE_THREE_DRAGONS_EXCLUDES: &[FanType] =
-    &[FanType::DragonPung, FanType::TwoDragonPungs];
 
 pub(crate) fn all_honors(
     profile: &HandProfile,
@@ -339,16 +303,11 @@ pub(crate) fn all_honors(
     }
     let n = profile.n_sets as usize;
     if profile.melds[..n].iter().all(|m| m.is_honor) && profile.pair.is_honor {
-        vec![cand(FanType::AllHonors, 0b1111, true)]
+        vec![cand(FanType::AllHonors, 0, true)]
     } else {
         vec![]
     }
 }
-pub(crate) const ALL_HONORS_EXCLUDES: &[FanType] = &[
-    FanType::AllPungs,
-    FanType::OutsideHand,
-    FanType::PungOfTerminalsOrHonors,
-];
 
 pub(crate) fn four_concealed_pungs(
     profile: &HandProfile,
@@ -369,8 +328,6 @@ pub(crate) fn four_concealed_pungs(
         vec![]
     }
 }
-pub(crate) const FOUR_CONCEALED_PUNGS_EXCLUDES: &[FanType] =
-    &[FanType::AllPungs, FanType::ConcealedHand];
 
 pub(crate) fn pure_terminal_chows(
     profile: &HandProfile,
@@ -395,18 +352,11 @@ pub(crate) fn pure_terminal_chows(
     let r1 = profile.melds[..n].iter().filter(|m| m.rank == 1).count() as u8;
     let r7 = profile.melds[..n].iter().filter(|m| m.rank == 7).count() as u8;
     if r1 == 2 && r7 == 2 {
-        vec![cand(FanType::PureTerminalChows, 0b1111, true)]
+        vec![cand(FanType::PureTerminalChows, 0, true)]
     } else {
         vec![]
     }
 }
-pub(crate) const PURE_TERMINAL_CHOWS_EXCLUDES: &[FanType] = &[
-    FanType::SevenPairs,
-    FanType::FullFlush,
-    FanType::AllChows,
-    FanType::PureDoubleChow,
-    FanType::TwoTerminalChows,
-];
 
 // ── 48 points ──────────────────────────────────────────────────
 
@@ -452,11 +402,6 @@ pub(crate) fn quadruple_chow(
     }
     vec![]
 }
-pub(crate) const QUADRUPLE_CHOW_EXCLUDES: &[FanType] = &[
-    FanType::PureShiftedPungs,
-    FanType::TileHog,
-    FanType::PureDoubleChow,
-];
 
 pub(crate) fn four_pure_shifted_pungs(
     profile: &HandProfile,
@@ -502,8 +447,6 @@ pub(crate) fn four_pure_shifted_pungs(
     }
     vec![]
 }
-pub(crate) const FOUR_PURE_SHIFTED_PUNGS_EXCLUDES: &[FanType] =
-    &[FanType::PureTripleChow, FanType::AllPungs];
 
 // ═══════════════════════════════════════════════════════════════
 // Tests — sourced from the official MCR rulebook

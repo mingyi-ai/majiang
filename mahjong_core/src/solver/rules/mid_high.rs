@@ -66,8 +66,6 @@ pub(crate) fn four_shifted_chows(
     }
     vec![]
 }
-pub(crate) const FOUR_SHIFTED_CHOWS_EXCLUDES: &[FanType] =
-    &[FanType::ShortStraight];
 
 pub(crate) fn three_kongs(
     profile: &HandProfile,
@@ -81,7 +79,6 @@ pub(crate) fn three_kongs(
         vec![]
     }
 }
-pub(crate) const THREE_KONGS_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn all_terminals_and_honors(
     profile: &HandProfile,
@@ -95,13 +92,11 @@ pub(crate) fn all_terminals_and_honors(
     let n = profile.n_sets as usize;
     let f = |t: Tile| is_terminal_tile(t) || is_honor_tile(t);
     if profile.melds[..n].iter().all(|m| f(m.tile)) && f(profile.pair.tile) {
-        vec![cand(FanType::AllTerminalsAndHonors, 0b1111, true)]
+        vec![cand(FanType::AllTerminalsAndHonors, 0, true)]
     } else {
         vec![]
     }
 }
-pub(crate) const ALL_TERMINALS_AND_HONORS_EXCLUDES: &[FanType] =
-    &[FanType::AllPungs, FanType::PungOfTerminalsOrHonors];
 
 // ── 24 points ──────────────────────────────────────────────────
 
@@ -116,8 +111,6 @@ pub(crate) fn seven_pairs(
         _ => vec![],
     }
 }
-pub(crate) const SEVEN_PAIRS_EXCLUDES: &[FanType] =
-    &[FanType::ConcealedHand, FanType::SingleWait];
 
 pub(crate) fn all_even_pungs(
     profile: &HandProfile,
@@ -134,13 +127,11 @@ pub(crate) fn all_even_pungs(
         .all(|m| is_pung_or_kong(m) && is_even_rank(m.tile))
         && is_even_rank(profile.pair.tile)
     {
-        vec![cand(FanType::AllEvenPungs, 0b1111, true)]
+        vec![cand(FanType::AllEvenPungs, 0, true)]
     } else {
         vec![]
     }
 }
-pub(crate) const ALL_EVEN_PUNGS_EXCLUDES: &[FanType] =
-    &[FanType::AllPungs, FanType::AllSimples];
 
 pub(crate) fn full_flush(
     profile: &HandProfile,
@@ -158,12 +149,11 @@ pub(crate) fn full_flush(
     let n = profile.n_sets as usize;
     if profile.melds[..n].iter().all(|m| m.suit == s) && profile.pair.suit == s
     {
-        vec![cand(FanType::FullFlush, 0b1111, true)]
+        vec![cand(FanType::FullFlush, 0, true)]
     } else {
         vec![]
     }
 }
-pub(crate) const FULL_FLUSH_EXCLUDES: &[FanType] = &[FanType::NoHonors];
 
 pub(crate) fn pure_triple_chow(
     profile: &HandProfile,
@@ -199,8 +189,6 @@ pub(crate) fn pure_triple_chow(
     }
     vec![]
 }
-pub(crate) const PURE_TRIPLE_CHOW_EXCLUDES: &[FanType] =
-    &[FanType::PureShiftedPungs, FanType::PureDoubleChow];
 
 pub(crate) fn pure_shifted_pungs(
     profile: &HandProfile,
@@ -242,8 +230,6 @@ pub(crate) fn pure_shifted_pungs(
     }
     vec![]
 }
-pub(crate) const PURE_SHIFTED_PUNGS_EXCLUDES: &[FanType] =
-    &[FanType::PureTripleChow];
 
 pub(crate) fn upper_tiles(
     profile: &HandProfile,
@@ -253,7 +239,7 @@ pub(crate) fn upper_tiles(
 ) -> Vec<FanCandidate> {
     match profile.kind {
         ProfileKind::Standard if all_in_range(profile, 7, 9) => {
-            vec![cand(FanType::UpperTiles, 0b1111, true)]
+            vec![cand(FanType::UpperTiles, 0, true)]
         }
         ProfileKind::SevenPairs => {
             if profile.pair_tiles.iter().all(|&t| {
@@ -268,7 +254,6 @@ pub(crate) fn upper_tiles(
         _ => vec![],
     }
 }
-pub(crate) const UPPER_TILES_EXCLUDES: &[FanType] = &[FanType::NoHonors];
 
 pub(crate) fn middle_tiles(
     profile: &HandProfile,
@@ -278,7 +263,7 @@ pub(crate) fn middle_tiles(
 ) -> Vec<FanCandidate> {
     match profile.kind {
         ProfileKind::Standard if all_in_range(profile, 4, 6) => {
-            vec![cand(FanType::MiddleTiles, 0b1111, true)]
+            vec![cand(FanType::MiddleTiles, 0, true)]
         }
         ProfileKind::SevenPairs => {
             if profile.pair_tiles.iter().all(|&t| {
@@ -293,8 +278,6 @@ pub(crate) fn middle_tiles(
         _ => vec![],
     }
 }
-pub(crate) const MIDDLE_TILES_EXCLUDES: &[FanType] =
-    &[FanType::NoHonors, FanType::AllSimples];
 
 pub(crate) fn lower_tiles(
     profile: &HandProfile,
@@ -304,7 +287,7 @@ pub(crate) fn lower_tiles(
 ) -> Vec<FanCandidate> {
     match profile.kind {
         ProfileKind::Standard if all_in_range(profile, 1, 3) => {
-            vec![cand(FanType::LowerTiles, 0b1111, true)]
+            vec![cand(FanType::LowerTiles, 0, true)]
         }
         ProfileKind::SevenPairs => {
             if profile.pair_tiles.iter().all(|&t| {
@@ -319,7 +302,6 @@ pub(crate) fn lower_tiles(
         _ => vec![],
     }
 }
-pub(crate) const LOWER_TILES_EXCLUDES: &[FanType] = &[FanType::NoHonors];
 
 // ── 16 points ──────────────────────────────────────────────────
 
@@ -362,7 +344,6 @@ pub(crate) fn pure_straight(
     }
     vec![]
 }
-pub(crate) const PURE_STRAIGHT_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn three_suited_terminal_chows(
     profile: &HandProfile,
@@ -404,14 +385,8 @@ pub(crate) fn three_suited_terminal_chows(
     if s_list.contains(&profile.pair.suit) {
         return vec![];
     }
-    vec![cand(FanType::ThreeSuitedTerminalChows, 0b1111, true)]
+    vec![cand(FanType::ThreeSuitedTerminalChows, 0, true)]
 }
-pub(crate) const THREE_SUITED_TERMINAL_CHOWS_EXCLUDES: &[FanType] = &[
-    FanType::PureDoubleChow,
-    FanType::TwoTerminalChows,
-    FanType::NoHonors,
-    FanType::AllChows,
-];
 
 pub(crate) fn pure_shifted_chows(
     profile: &HandProfile,
@@ -456,7 +431,6 @@ pub(crate) fn pure_shifted_chows(
     }
     vec![]
 }
-pub(crate) const PURE_SHIFTED_CHOWS_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn all_fives(
     profile: &HandProfile,
@@ -474,12 +448,11 @@ pub(crate) fn all_fives(
         _ => f(m.rank),
     }) && f(profile.pair.rank);
     if ok {
-        vec![cand(FanType::AllFives, 0b1111, true)]
+        vec![cand(FanType::AllFives, 0, true)]
     } else {
         vec![]
     }
 }
-pub(crate) const ALL_FIVES_EXCLUDES: &[FanType] = &[FanType::AllSimples];
 
 pub(crate) fn triple_pung(
     profile: &HandProfile,
@@ -512,7 +485,6 @@ pub(crate) fn triple_pung(
     }
     vec![]
 }
-pub(crate) const TRIPLE_PUNG_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn three_concealed_pungs(
     profile: &HandProfile,
@@ -531,7 +503,6 @@ pub(crate) fn three_concealed_pungs(
         vec![]
     }
 }
-pub(crate) const THREE_CONCEALED_PUNGS_EXCLUDES: &[FanType] = &[];
 
 // ═══════════════════════════════════════════════════════════════
 // Tests — sourced from the official MCR rulebook

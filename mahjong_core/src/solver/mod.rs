@@ -1,6 +1,6 @@
 mod decompose_special;
 mod decompose_standard;
-pub(crate) mod fan_solver;
+mod fan_solver;
 mod rules;
 
 use crate::{
@@ -9,7 +9,7 @@ use crate::{
     structs::{Hand, Meld, Pair, Tile, Wind},
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum SolverError {
     InvalidHand,
 }
@@ -116,8 +116,10 @@ fn keep_highest_score(
 
 /// Compatibility stub for the old `is_hu` function.
 pub(crate) fn is_hu(hand: &Hand) -> Result<bool, SolverError> {
-    let mut decompositions = decompose_hand(hand)?;
-    Ok(decompositions.next().is_some())
+    match decompose_hand(hand) {
+        Ok(mut iter) => Ok(iter.next().is_some()),
+        Err(_) => Ok(false),
+    }
 }
 
 pub(crate) enum Decomposition {

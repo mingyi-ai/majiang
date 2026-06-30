@@ -4,9 +4,9 @@ use crate::structs::{BitTileCounts, Meld, Sequence, Tile, Triplet};
 /// Result of decomposing only the concealed tiles (no declared melds).
 /// Private to the standard decomposer; the orchestration layer combines
 /// these with declared melds to produce `Decomposition::Standard`.
-pub(crate) struct ConcealedDecompStd {
-    pub(crate) pair_tile: Tile,
-    pub(crate) melds: ArrayVec<Meld, 4>,
+pub(super) struct ConcealedDecompStd {
+    pub(super) pair_tile: Tile,
+    pub(super) melds: ArrayVec<Meld, 4>,
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -228,7 +228,7 @@ fn emit_standard(
 }
 
 fn try_each_pair_in_suit(
-    suit: usize,
+    suit_idx: usize,
     counts: &BitTileCounts,
     honor_pungs: &[Meld],
     suit_cache: &[SuitDecomps; 3],
@@ -236,25 +236,25 @@ fn try_each_pair_in_suit(
 ) {
     // Other suits' decomposability doesn't depend on pair position.
     for (i, cache) in suit_cache.iter().enumerate() {
-        if i != suit && counts.rows[i] != 0 && cache.is_empty() {
+        if i != suit_idx && counts.rows[i] != 0 && cache.is_empty() {
             return;
         }
     }
 
-    let row = counts.rows[suit];
+    let row = counts.rows[suit_idx];
     for shift in pair_positions_in_row(row) {
-        let pair_tile = BitTileCounts::position_to_tile(suit, shift);
+        let pair_tile = BitTileCounts::position_to_tile(suit_idx, shift);
 
         let row_minus_pair = {
             let mut r = row;
             BitTileCounts::remove_nibble(&mut r, shift, 2);
             r
         };
-        let pair_decomps = decompose_suit(row_minus_pair, suit);
+        let pair_decomps = decompose_suit(row_minus_pair, suit_idx);
         if row_minus_pair != 0 && pair_decomps.is_empty() {
             continue;
         }
-        let combos = combine_suits_with(suit_cache, suit, &pair_decomps);
+        let combos = combine_suits_with(suit_cache, suit_idx, &pair_decomps);
         emit_standard(honor_pungs, pair_tile, combos, out);
     }
 }

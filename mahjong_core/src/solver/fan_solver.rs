@@ -47,6 +47,8 @@ struct Frame {
     excluded_mask: FanExclusionSet,
     total_score: u16,
     path_len: usize,
+    used_sets: u64,
+    bridge_count: [u8; 4],
 }
 
 // ── Search space construction ──
@@ -90,6 +92,14 @@ impl SearchSpace {
 
 // ── Eligibility check ──
 
+/// Check if a candidate can be added to the current selection.
+/// Enforces:
+///   1. Score monotonicity (non-increasing scores)
+///   2. MCR mutual exclusion (excludes_mask)
+///   3. Non-repeat (sig_key dedup)
+///   4. Account-Once Principle: a set can bridge to remaining sets at most once.
+///      Only applies to structural fans (≥2 sets). Hand properties (mask = 0) and
+///      single-set fans (mask has 1 bit) are exempt — they don't combine sets.
 #[inline]
 fn is_eligible(
     inst: &SearchInstance,
@@ -97,6 +107,8 @@ fn is_eligible(
     max_allowed_score: u8,
     used_sig_keys: &[SigKey; 32],
     used_count: usize,
+    used_sets: u64,
+    bridge_count: &[u8; 4],
 ) -> bool {
     if inst.score > max_allowed_score {
         return false;
@@ -107,6 +119,22 @@ fn is_eligible(
     for &sk in used_sig_keys[..used_count].iter() {
         if sk == inst.sig_key {
             return false;
+        }
+    }
+    // Account-Once: only structural fans (≥2 sets, non-zero)
+    let m = inst.used_set_mask;
+    let n_sets = m.count_ones();
+    if n_sets >= 2 && used_sets != 0 {
+        let intersection = m & used_sets;
+        let remaining = m & !used_sets;
+        if intersection != 0 && remaining != 0 {
+            // This fan bridges from already-used sets to new sets.
+            // Each set can bridge at most once.
+            for set in 0..4 {
+                if (intersection >> set) & 1 == 1 && bridge_count[set] >= 1 {
+                    return false;
+                }
+            }
         }
     }
     true
@@ -144,6 +172,8 @@ pub fn solve_max_score(candidates: Vec<FanCandidate>) -> Vec<FanSolveResult> {
     let mut excluded_mask = FanExclusionSet::default();
     let mut max_allowed_score = instances[order[0]].score;
     let mut total_score: u16 = 0;
+    let mut used_sets: u64 = 0;
+    let mut bridge_count: [u8; 4] = [0; 4];
 
     let mut best_score: u16 = 0;
     let mut best_paths: Vec<Vec<usize>> = Vec::new();
@@ -164,6 +194,8 @@ pub fn solve_max_score(candidates: Vec<FanCandidate>) -> Vec<FanSolveResult> {
                 max_allowed_score,
                 &used_sig_keys,
                 used_count,
+                used_sets,
+                &bridge_count,
             ) {
                 scan += 1;
                 continue;
@@ -175,6 +207,8 @@ pub fn solve_max_score(candidates: Vec<FanCandidate>) -> Vec<FanSolveResult> {
                 excluded_mask,
                 total_score,
                 path_len: path.len(),
+                used_sets,
+                bridge_count,
             });
 
             path.push(inst_id);
@@ -185,6 +219,21 @@ pub fn solve_max_score(candidates: Vec<FanCandidate>) -> Vec<FanSolveResult> {
                 FanExclusionSet(excluded_mask.0 | inst.excludes_mask.0);
             max_allowed_score = inst.score;
             total_score += inst.score as u16;
+
+            // Update Account-Once state for structural fans
+            let m = inst.used_set_mask;
+            if m.count_ones() >= 2 {
+                let intersection = m & used_sets;
+                let remaining = m & !used_sets;
+                if intersection != 0 && remaining != 0 {
+                    for set in 0..4 {
+                        if (intersection >> set) & 1 == 1 {
+                            bridge_count[set] += 1;
+                        }
+                    }
+                }
+                used_sets |= m;
+            }
 
             pos = scan + 1;
             picked = true;
@@ -205,6 +254,8 @@ pub fn solve_max_score(candidates: Vec<FanCandidate>) -> Vec<FanSolveResult> {
                 max_allowed_score = frame.max_allowed_score;
                 excluded_mask = frame.excluded_mask;
                 total_score = frame.total_score;
+                used_sets = frame.used_sets;
+                bridge_count = frame.bridge_count;
 
                 while path.len() > frame.path_len {
                     path.pop();

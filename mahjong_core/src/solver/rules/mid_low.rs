@@ -28,8 +28,6 @@ pub(crate) fn lesser_honors_and_knitted_tiles(
         _ => vec![],
     }
 }
-pub(crate) const LESSER_HONORS_AND_KNITTED_TILES_EXCLUDES: &[FanType] =
-    &[FanType::AllTypes, FanType::ConcealedHand];
 
 pub(crate) fn knitted_straight(
     profile: &HandProfile,
@@ -44,7 +42,6 @@ pub(crate) fn knitted_straight(
         _ => vec![],
     }
 }
-pub(crate) const KNITTED_STRAIGHT_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn upper_four(
     profile: &HandProfile,
@@ -54,7 +51,7 @@ pub(crate) fn upper_four(
 ) -> Vec<FanCandidate> {
     match profile.kind {
         ProfileKind::Standard if all_in_range(profile, 6, 9) => {
-            vec![cand(FanType::UpperFour, 0b1111, true)]
+            vec![cand(FanType::UpperFour, 0, true)]
         }
         ProfileKind::SevenPairs => {
             if profile.pair_tiles.iter().all(|&t| {
@@ -69,7 +66,6 @@ pub(crate) fn upper_four(
         _ => vec![],
     }
 }
-pub(crate) const UPPER_FOUR_EXCLUDES: &[FanType] = &[FanType::NoHonors];
 
 pub(crate) fn lower_four(
     profile: &HandProfile,
@@ -79,7 +75,7 @@ pub(crate) fn lower_four(
 ) -> Vec<FanCandidate> {
     match profile.kind {
         ProfileKind::Standard if all_in_range(profile, 1, 4) => {
-            vec![cand(FanType::LowerFour, 0b1111, true)]
+            vec![cand(FanType::LowerFour, 0, true)]
         }
         ProfileKind::SevenPairs => {
             if profile.pair_tiles.iter().all(|&t| {
@@ -94,7 +90,6 @@ pub(crate) fn lower_four(
         _ => vec![],
     }
 }
-pub(crate) const LOWER_FOUR_EXCLUDES: &[FanType] = &[FanType::NoHonors];
 
 pub(crate) fn big_three_winds(
     profile: &HandProfile,
@@ -116,7 +111,6 @@ pub(crate) fn big_three_winds(
         vec![]
     }
 }
-pub(crate) const BIG_THREE_WINDS_EXCLUDES: &[FanType] = &[];
 
 // ── 8 points ──────────────────────────────────────────────────
 
@@ -150,14 +144,13 @@ pub(crate) fn mixed_straight(
                 let suits: HashSet<u8> =
                     [chows[i].2, chows[j].2, chows[k].2].into();
                 if suits.len() == 3 {
-                    return vec![cand(FanType::MixedStraight, 0b1111, false)];
+                    return vec![cand(FanType::MixedStraight, 0, false)];
                 }
             }
         }
     }
     vec![]
 }
-pub(crate) const MIXED_STRAIGHT_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn reversible_tiles(
     profile: &HandProfile,
@@ -175,7 +168,7 @@ pub(crate) fn reversible_tiles(
                 _ => is_reversible_tile(m.tile),
             }) && is_reversible_tile(profile.pair.tile);
             if all_rev {
-                vec![cand(FanType::ReversibleTiles, 0b1111, true)]
+                vec![cand(FanType::ReversibleTiles, 0, true)]
             } else {
                 vec![]
             }
@@ -183,8 +176,6 @@ pub(crate) fn reversible_tiles(
         _ => vec![],
     }
 }
-pub(crate) const REVERSIBLE_TILES_EXCLUDES: &[FanType] =
-    &[FanType::OneVoidedSuit];
 
 pub(crate) fn mixed_triple_chow(
     profile: &HandProfile,
@@ -224,7 +215,6 @@ pub(crate) fn mixed_triple_chow(
     }
     vec![]
 }
-pub(crate) const MIXED_TRIPLE_CHOW_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn mixed_shifted_pungs(
     profile: &HandProfile,
@@ -266,7 +256,6 @@ pub(crate) fn mixed_shifted_pungs(
     }
     vec![]
 }
-pub(crate) const MIXED_SHIFTED_PUNGS_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn chicken_hand(
     _profile: &HandProfile,
@@ -276,7 +265,6 @@ pub(crate) fn chicken_hand(
 ) -> Vec<FanCandidate> {
     vec![]
 }
-pub(crate) const CHICKEN_HAND_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn last_tile_draw(
     _profile: &HandProfile,
@@ -290,7 +278,6 @@ pub(crate) fn last_tile_draw(
         vec![]
     }
 }
-pub(crate) const LAST_TILE_DRAW_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn last_tile_claim(
     _profile: &HandProfile,
@@ -304,7 +291,6 @@ pub(crate) fn last_tile_claim(
         vec![]
     }
 }
-pub(crate) const LAST_TILE_CLAIM_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn out_with_replacement_tile(
     _profile: &HandProfile,
@@ -318,7 +304,6 @@ pub(crate) fn out_with_replacement_tile(
         vec![]
     }
 }
-pub(crate) const OUT_WITH_REPLACEMENT_TILE_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn robbing_the_kong(
     _profile: &HandProfile,
@@ -332,7 +317,6 @@ pub(crate) fn robbing_the_kong(
         vec![]
     }
 }
-pub(crate) const ROBBING_THE_KONG_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn two_concealed_kongs(
     profile: &HandProfile,
@@ -351,7 +335,6 @@ pub(crate) fn two_concealed_kongs(
         vec![]
     }
 }
-pub(crate) const TWO_CONCEALED_KONGS_EXCLUDES: &[FanType] = &[];
 
 // ── 6 points ──────────────────────────────────────────────────
 
@@ -362,12 +345,11 @@ pub(crate) fn all_pungs(
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     if profile.all_pungs && profile.n_sets == 4 {
-        vec![cand(FanType::AllPungs, 0b1111, false)]
+        vec![cand(FanType::AllPungs, 0, false)]
     } else {
         vec![]
     }
 }
-pub(crate) const ALL_PUNGS_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn half_flush(
     profile: &HandProfile,
@@ -389,12 +371,11 @@ pub(crate) fn half_flush(
         suits.insert(profile.pair.suit);
     }
     if suits.len() == 1 && profile.has_honors {
-        vec![cand(FanType::HalfFlush, 0b1111, true)]
+        vec![cand(FanType::HalfFlush, 0, true)]
     } else {
         vec![]
     }
 }
-pub(crate) const HALF_FLUSH_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn mixed_shifted_chows(
     profile: &HandProfile,
@@ -437,7 +418,6 @@ pub(crate) fn mixed_shifted_chows(
     }
     vec![]
 }
-pub(crate) const MIXED_SHIFTED_CHOWS_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn all_types(
     profile: &HandProfile,
@@ -478,12 +458,11 @@ pub(crate) fn all_types(
         full_mask |= 1 << profile.pair.suit;
     }
     if full_mask == 0b11111 {
-        vec![cand(FanType::AllTypes, 0b1111, true)]
+        vec![cand(FanType::AllTypes, 0, true)]
     } else {
         vec![]
     }
 }
-pub(crate) const ALL_TYPES_EXCLUDES: &[FanType] = &[];
 
 pub(crate) fn melded_hand(
     profile: &HandProfile,
@@ -500,12 +479,11 @@ pub(crate) fn melded_hand(
         && static_ctx.win_method == WinMethod::Discard
         && wait_type == WaitType::Single
     {
-        vec![cand(FanType::MeldedHand, 0b1111, true)]
+        vec![cand(FanType::MeldedHand, 0, true)]
     } else {
         vec![]
     }
 }
-pub(crate) const MELDED_HAND_EXCLUDES: &[FanType] = &[FanType::SingleWait];
 
 pub(crate) fn two_dragon_pungs(
     profile: &HandProfile,
@@ -524,7 +502,6 @@ pub(crate) fn two_dragon_pungs(
         vec![]
     }
 }
-pub(crate) const TWO_DRAGON_PUNGS_EXCLUDES: &[FanType] = &[];
 
 // ═══════════════════════════════════════════════════════════════
 // Tests — sourced from the official MCR rulebook
