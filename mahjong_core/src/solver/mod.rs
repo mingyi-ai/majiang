@@ -142,8 +142,6 @@ pub(crate) struct DecomposeResult {
     pub(crate) wait_type: WaitType,
 }
 
-use crate::solver::rules::HandProfile;
-
 /// Enumerate all valid full-hand decompositions for fan scoring.
 fn decompose_hand(
     hand: &Hand,
@@ -207,12 +205,9 @@ fn score_decomposition(
     static_ctx: &StaticFanContext,
     dynamic_ctx: &DynamicFanContext,
 ) -> Vec<FanResult> {
-    // Build HandProfile for rule checking
-    let profile = HandProfile::from_decomposition(&decomp.decompositions);
-
     // Run all rules via the macro-generated registry
     let candidates =
-        rules::check_all(&profile, static_ctx, dynamic_ctx, decomp.wait_type);
+        rules::check_all(decomp, static_ctx, dynamic_ctx, decomp.wait_type);
 
     // Run the search kernel to find the max-score compatible subset
     let solve_results = fan_solver::solve_max_score(candidates);

@@ -7,10 +7,10 @@
 use std::collections::HashSet;
 
 use super::super::{DynamicFanContext, StaticFanContext, WaitType};
-use super::helpers::{all_in_range, cand, is_chow, is_pung_or_kong};
-use super::profile::{
-    HandProfile, MeldKind, ProfileKind, is_even_rank, is_honor_tile,
-    is_terminal_tile, rank_of,
+use crate::solver::{DecomposeResult, Decomposition};
+use super::helpers::{
+    MeldKind, all_in_range, cand, is_chow, is_even_rank, is_honor_tile,
+    is_pung_or_kong, is_terminal_tile, meld_info, pair_info, rank_of,
 };
 use super::{FanCandidate, FanType};
 use crate::structs::Tile;
@@ -18,20 +18,21 @@ use crate::structs::Tile;
 // ── 32 points ──────────────────────────────────────────────────
 
 pub(crate) fn four_shifted_chows(
-    profile: &HandProfile,
+    decomp: &DecomposeResult,
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
-    if !profile.is_standard() {
-        return vec![];
-    }
-    let n = profile.n_sets as usize;
-    let chows: Vec<(usize, u8, u8)> = profile.melds[..n]
+    let (pair, sets) = match &decomp.decompositions {
+        Decomposition::Standard { pair, sets } => (pair, sets),
+        _ => return vec![],
+    };
+    let n = sets.len();
+    let chows: Vec<(usize, u8, u8)> = sets
         .iter()
         .enumerate()
         .filter(|(_, m)| is_chow(m))
-        .map(|(i, m)| (i, m.rank, m.suit))
+        .map(|(i, m)| (i, meld_info(m).rank, meld_info(m).suit))
         .collect();
     if chows.len() < 4 {
         return vec![];
@@ -68,12 +69,17 @@ pub(crate) fn four_shifted_chows(
 }
 
 pub(crate) fn three_kongs(
-    profile: &HandProfile,
+    decomp: &DecomposeResult,
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
-    if profile.n_kongs >= 3 {
+    let (pair, sets) = match &decomp.decompositions {
+        Decomposition::Standard { pair, sets } => (pair, sets),
+        _ => return vec![],
+    };
+
+    if sets.iter().filter(|m| matches!(meld_info(m).kind, MeldKind::Kong)).count() as u8 >= 3 {
         vec![cand(FanType::ThreeKongs, 0b1111, false)]
     } else {
         vec![]
@@ -81,17 +87,18 @@ pub(crate) fn three_kongs(
 }
 
 pub(crate) fn all_terminals_and_honors(
-    profile: &HandProfile,
+    decomp: &DecomposeResult,
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
-    if !profile.is_standard() {
-        return vec![];
-    }
-    let n = profile.n_sets as usize;
+    let (pair, sets) = match &decomp.decompositions {
+        Decomposition::Standard { pair, sets } => (pair, sets),
+        _ => return vec![],
+    };
+    let n = sets.len();
     let f = |t: Tile| is_terminal_tile(t) || is_honor_tile(t);
-    if profile.melds[..n].iter().all(|m| f(m.tile)) && f(profile.pair.tile) {
+    if sets.iter().all(|m| f(meld_info(m).tile)) && f(pair_info(pair).tile) {
         vec![cand(FanType::AllTerminalsAndHonors, 0, true)]
     } else {
         vec![]
@@ -101,31 +108,36 @@ pub(crate) fn all_terminals_and_honors(
 // ── 24 points ──────────────────────────────────────────────────
 
 pub(crate) fn seven_pairs(
-    profile: &HandProfile,
+    decomp: &DecomposeResult,
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
-    match profile.kind {
-        ProfileKind::SevenPairs => vec![cand(FanType::SevenPairs, 0, true)],
+    let (pair, sets) = match &decomp.decompositions {
+        Decomposition::Standard { pair, sets } => (pair, sets),
+        _ => return vec![],
+    };
+    match &decomp.decompositions {
+        SevenPairs => vec![cand(FanType::SevenPairs, 0, true)],
         _ => vec![],
     }
 }
 
 pub(crate) fn all_even_pungs(
-    profile: &HandProfile,
+    decomp: &DecomposeResult,
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
-    if !profile.is_standard() {
-        return vec![];
-    }
-    let n = profile.n_sets as usize;
-    if profile.melds[..n]
+    let (pair, sets) = match &decomp.decompositions {
+        Decomposition::Standard { pair, sets } => (pair, sets),
+        _ => return vec![],
+    };
+    let n = sets.len();
+    if sets
         .iter()
-        .all(|m| is_pung_or_kong(m) && is_even_rank(m.tile))
-        && is_even_rank(profile.pair.tile)
+        .all(|m| is_pung_or_kong(m) && is_even_rank(meld_info(m).tile))
+        && is_even_rank(pair_info(pair).tile)
     {
         vec![cand(FanType::AllEvenPungs, 0, true)]
     } else {
@@ -134,20 +146,25 @@ pub(crate) fn all_even_pungs(
 }
 
 pub(crate) fn full_flush(
-    profile: &HandProfile,
+    decomp: &DecomposeResult,
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
-    if !profile.is_standard() {
+    let (pair, sets) = match &decomp.decompositions {
+        Decomposition::Standard { pair, sets } => (pair, sets),
+        _ => return vec![],
+    };
+
+    if !matches!(decomp.decompositions, Decomposition::Standard { .. }) {
         return vec![];
     }
-    let s = profile.melds[0].suit;
+    let s = meld_info(&sets[0]).suit;
     if s >= 3 {
         return vec![];
     }
-    let n = profile.n_sets as usize;
-    if profile.melds[..n].iter().all(|m| m.suit == s) && profile.pair.suit == s
+    let n = sets.len();
+    if sets.iter().all(|m| meld_info(m).suit == s) && pair_info(pair).suit == s
     {
         vec![cand(FanType::FullFlush, 0, true)]
     } else {
@@ -156,20 +173,21 @@ pub(crate) fn full_flush(
 }
 
 pub(crate) fn pure_triple_chow(
-    profile: &HandProfile,
+    decomp: &DecomposeResult,
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
-    if !profile.is_standard() {
-        return vec![];
-    }
-    let n = profile.n_sets as usize;
-    let chows: Vec<(usize, u8, u8)> = profile.melds[..n]
+    let (pair, sets) = match &decomp.decompositions {
+        Decomposition::Standard { pair, sets } => (pair, sets),
+        _ => return vec![],
+    };
+    let n = sets.len();
+    let chows: Vec<(usize, u8, u8)> = sets
         .iter()
         .enumerate()
         .filter(|(_, m)| is_chow(m))
-        .map(|(i, m)| (i, m.rank, m.suit))
+        .map(|(i, m)| (i, meld_info(m).rank, meld_info(m).suit))
         .collect();
     if chows.len() < 3 {
         return vec![];
@@ -191,20 +209,21 @@ pub(crate) fn pure_triple_chow(
 }
 
 pub(crate) fn pure_shifted_pungs(
-    profile: &HandProfile,
+    decomp: &DecomposeResult,
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
-    if !profile.is_standard() {
-        return vec![];
-    }
-    let n = profile.n_sets as usize;
-    let p: Vec<(usize, u8, u8)> = profile.melds[..n]
+    let (pair, sets) = match &decomp.decompositions {
+        Decomposition::Standard { pair, sets } => (pair, sets),
+        _ => return vec![],
+    };
+    let n = sets.len();
+    let p: Vec<(usize, u8, u8)> = sets
         .iter()
         .enumerate()
         .filter(|(_, m)| is_pung_or_kong(m))
-        .map(|(i, m)| (i, m.rank, m.suit))
+        .map(|(i, m)| (i, meld_info(m).rank, meld_info(m).suit))
         .collect();
     if p.len() < 3 {
         return vec![];
@@ -232,18 +251,22 @@ pub(crate) fn pure_shifted_pungs(
 }
 
 pub(crate) fn upper_tiles(
-    profile: &HandProfile,
+    decomp: &DecomposeResult,
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
-    match profile.kind {
-        ProfileKind::Standard if all_in_range(profile, 7, 9) => {
+    let (pair, sets) = match &decomp.decompositions {
+        Decomposition::Standard { pair, sets } => (pair, sets),
+        _ => return vec![],
+    };
+    match &decomp.decompositions {
+        Decomposition::Standard { pair, sets } if all_in_range(sets.as_slice(), pair, 7, 9) => {
             vec![cand(FanType::UpperTiles, 0, true)]
         }
-        ProfileKind::SevenPairs => {
-            if profile.pair_tiles.iter().all(|&t| {
-                let r = rank_of(t);
+        Decomposition::SevenPairs { pairs } => {
+            if pairs.iter().all(|t| {
+                let r = rank_of(t.tile());
                 (7..=9).contains(&r)
             }) {
                 vec![cand(FanType::UpperTiles, 0, true)]
@@ -256,18 +279,22 @@ pub(crate) fn upper_tiles(
 }
 
 pub(crate) fn middle_tiles(
-    profile: &HandProfile,
+    decomp: &DecomposeResult,
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
-    match profile.kind {
-        ProfileKind::Standard if all_in_range(profile, 4, 6) => {
+    let (pair, sets) = match &decomp.decompositions {
+        Decomposition::Standard { pair, sets } => (pair, sets),
+        _ => return vec![],
+    };
+    match &decomp.decompositions {
+        Decomposition::Standard { pair, sets } if all_in_range(sets.as_slice(), pair, 4, 6) => {
             vec![cand(FanType::MiddleTiles, 0, true)]
         }
-        ProfileKind::SevenPairs => {
-            if profile.pair_tiles.iter().all(|&t| {
-                let r = rank_of(t);
+        Decomposition::SevenPairs { pairs } => {
+            if pairs.iter().all(|t| {
+                let r = rank_of(t.tile());
                 (4..=6).contains(&r)
             }) {
                 vec![cand(FanType::MiddleTiles, 0, true)]
@@ -280,18 +307,22 @@ pub(crate) fn middle_tiles(
 }
 
 pub(crate) fn lower_tiles(
-    profile: &HandProfile,
+    decomp: &DecomposeResult,
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
-    match profile.kind {
-        ProfileKind::Standard if all_in_range(profile, 1, 3) => {
+    let (pair, sets) = match &decomp.decompositions {
+        Decomposition::Standard { pair, sets } => (pair, sets),
+        _ => return vec![],
+    };
+    match &decomp.decompositions {
+        Decomposition::Standard { pair, sets } if all_in_range(sets.as_slice(), pair, 1, 3) => {
             vec![cand(FanType::LowerTiles, 0, true)]
         }
-        ProfileKind::SevenPairs => {
-            if profile.pair_tiles.iter().all(|&t| {
-                let r = rank_of(t);
+        Decomposition::SevenPairs { pairs } => {
+            if pairs.iter().all(|t| {
+                let r = rank_of(t.tile());
                 (1..=3).contains(&r)
             }) {
                 vec![cand(FanType::LowerTiles, 0, true)]
@@ -306,20 +337,21 @@ pub(crate) fn lower_tiles(
 // ── 16 points ──────────────────────────────────────────────────
 
 pub(crate) fn pure_straight(
-    profile: &HandProfile,
+    decomp: &DecomposeResult,
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
-    if !profile.is_standard() {
-        return vec![];
-    }
-    let n = profile.n_sets as usize;
-    let chows: Vec<(usize, u8, u8)> = profile.melds[..n]
+    let (pair, sets) = match &decomp.decompositions {
+        Decomposition::Standard { pair, sets } => (pair, sets),
+        _ => return vec![],
+    };
+    let n = sets.len();
+    let chows: Vec<(usize, u8, u8)> = sets
         .iter()
         .enumerate()
         .filter(|(_, m)| is_chow(m))
-        .map(|(i, m)| (i, m.rank, m.suit))
+        .map(|(i, m)| (i, meld_info(m).rank, meld_info(m).suit))
         .collect();
     if chows.len() < 3 {
         return vec![];
@@ -346,23 +378,27 @@ pub(crate) fn pure_straight(
 }
 
 pub(crate) fn three_suited_terminal_chows(
-    profile: &HandProfile,
+    decomp: &DecomposeResult,
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
-    if !profile.is_standard() || profile.n_sets != 4 {
+    let (pair, sets) = match &decomp.decompositions {
+    Decomposition::Standard { pair, sets } => (pair, sets),
+    _ => return vec![],
+};
+if sets.len() != 4 {
         return vec![];
     }
-    if profile.pair.is_honor || profile.pair.rank != 5 {
+    if pair_info(pair).is_honor || pair_info(pair).rank != 5 {
         return vec![];
     }
-    let n = profile.n_sets as usize;
-    let chows: Vec<(usize, u8, u8)> = profile.melds[..n]
+    let n = sets.len();
+    let chows: Vec<(usize, u8, u8)> = sets
         .iter()
         .enumerate()
         .filter(|(_, m)| is_chow(m))
-        .map(|(i, m)| (i, m.rank, m.suit))
+        .map(|(i, m)| (i, meld_info(m).rank, meld_info(m).suit))
         .collect();
     if chows.len() != 4 {
         return vec![];
@@ -382,27 +418,28 @@ pub(crate) fn three_suited_terminal_chows(
             return vec![];
         }
     }
-    if s_list.contains(&profile.pair.suit) {
+    if s_list.contains(&pair_info(pair).suit) {
         return vec![];
     }
     vec![cand(FanType::ThreeSuitedTerminalChows, 0, true)]
 }
 
 pub(crate) fn pure_shifted_chows(
-    profile: &HandProfile,
+    decomp: &DecomposeResult,
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
-    if !profile.is_standard() {
-        return vec![];
-    }
-    let n = profile.n_sets as usize;
-    let chows: Vec<(usize, u8, u8)> = profile.melds[..n]
+    let (pair, sets) = match &decomp.decompositions {
+        Decomposition::Standard { pair, sets } => (pair, sets),
+        _ => return vec![],
+    };
+    let n = sets.len();
+    let chows: Vec<(usize, u8, u8)> = sets
         .iter()
         .enumerate()
         .filter(|(_, m)| is_chow(m))
-        .map(|(i, m)| (i, m.rank, m.suit))
+        .map(|(i, m)| (i, meld_info(m).rank, meld_info(m).suit))
         .collect();
     if chows.len() < 3 {
         return vec![];
@@ -433,20 +470,21 @@ pub(crate) fn pure_shifted_chows(
 }
 
 pub(crate) fn all_fives(
-    profile: &HandProfile,
+    decomp: &DecomposeResult,
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
-    if !profile.is_standard() {
-        return vec![];
-    }
-    let n = profile.n_sets as usize;
+    let (pair, sets) = match &decomp.decompositions {
+        Decomposition::Standard { pair, sets } => (pair, sets),
+        _ => return vec![],
+    };
+    let n = sets.len();
     let f = |r: u8| r == 5;
-    let ok = profile.melds[..n].iter().all(|m| match m.kind {
-        MeldKind::Chow => m.tiles[..3].iter().any(|&t| rank_of(t) == 5),
-        _ => f(m.rank),
-    }) && f(profile.pair.rank);
+    let ok = sets.iter().all(|m| match meld_info(m).kind {
+        MeldKind::Chow => meld_info(m).tiles[..3].iter().any(|&t| rank_of(t) == 5),
+        _ => f(meld_info(m).rank),
+    }) && f(pair_info(pair).rank);
     if ok {
         vec![cand(FanType::AllFives, 0, true)]
     } else {
@@ -455,20 +493,21 @@ pub(crate) fn all_fives(
 }
 
 pub(crate) fn triple_pung(
-    profile: &HandProfile,
+    decomp: &DecomposeResult,
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
-    if !profile.is_standard() {
-        return vec![];
-    }
-    let n = profile.n_sets as usize;
-    let p: Vec<(usize, Tile, u8, u8)> = profile.melds[..n]
+    let (pair, sets) = match &decomp.decompositions {
+        Decomposition::Standard { pair, sets } => (pair, sets),
+        _ => return vec![],
+    };
+    let n = sets.len();
+    let p: Vec<(usize, Tile, u8, u8)> = sets
         .iter()
         .enumerate()
         .filter(|(_, m)| is_pung_or_kong(m))
-        .map(|(i, m)| (i, m.tile, m.rank, m.suit))
+        .map(|(i, m)| (i, meld_info(m).tile, meld_info(m).rank, meld_info(m).suit))
         .collect();
     for i in 0..p.len() {
         for j in i + 1..p.len() {
@@ -487,15 +526,20 @@ pub(crate) fn triple_pung(
 }
 
 pub(crate) fn three_concealed_pungs(
-    profile: &HandProfile,
+    decomp: &DecomposeResult,
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
-    let n = profile.n_sets as usize;
-    let cnt = profile.melds[..n]
+    let (pair, sets) = match &decomp.decompositions {
+        Decomposition::Standard { pair, sets } => (pair, sets),
+        _ => return vec![],
+    };
+
+    let n = sets.len();
+    let cnt = sets
         .iter()
-        .filter(|m| is_pung_or_kong(m) && m.is_concealed)
+        .filter(|m| is_pung_or_kong(m) && meld_info(m).is_concealed)
         .count();
     if cnt >= 3 {
         vec![cand(FanType::ThreeConcealedPungs, 0b1111, false)]

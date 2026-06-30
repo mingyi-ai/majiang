@@ -71,6 +71,11 @@ impl<T: Copy, const N: usize> ArrayVec<T, N> {
 
     /// Iterate over references to all initialized elements.
     #[inline]
+    /// Get a slice of the initialized elements.
+    pub fn as_slice(&self) -> &[T] {
+        unsafe { core::slice::from_raw_parts(self.data.as_ptr() as *const T, self.len) }
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = &T> {
         (0..self.len).map(|i| unsafe { self.data[i].assume_init_ref() })
     }

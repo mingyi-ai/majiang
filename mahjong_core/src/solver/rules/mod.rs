@@ -1,7 +1,4 @@
-mod profile;
-pub(crate) use profile::HandProfile;
-
-use super::{DynamicFanContext, StaticFanContext, WaitType};
+use super::{DecomposeResult, DynamicFanContext, StaticFanContext, WaitType};
 
 // ============================================================================
 // Type aliases
@@ -9,7 +6,7 @@ use super::{DynamicFanContext, StaticFanContext, WaitType};
 
 /// Signature for a rule check function.
 pub(crate) type RuleFn = fn(
-    &HandProfile,
+    &DecomposeResult,
     &StaticFanContext,
     &DynamicFanContext,
     WaitType,
@@ -100,7 +97,7 @@ macro_rules! mcr_rules {
         /// Run all registered rules against a decomposition profile and context.
         /// Returns candidates with precomputed exclusion masks.
         pub(crate) fn check_all(
-            profile: &HandProfile,
+            decomp: &DecomposeResult,
             static_ctx: &StaticFanContext,
             dynamic_ctx: &DynamicFanContext,
             wait_type: WaitType,
@@ -108,7 +105,7 @@ macro_rules! mcr_rules {
             ALL_RULES
                 .iter()
                 .flat_map(|entry| {
-                    let candidates = (entry.check)(profile, static_ctx, dynamic_ctx, wait_type);
+                    let candidates = (entry.check)(decomp, static_ctx, dynamic_ctx, wait_type);
                     candidates.into_iter().map(|mut c| {
                         c.excludes_mask = entry.fan_type.excludes_mask();
                         c
@@ -537,7 +534,7 @@ pub struct FanCandidate {
 
 /// No-op stub for rules not yet implemented. Always returns empty.
 pub(crate) fn empty_rule(
-    _profile: &HandProfile,
+    _decomp: &DecomposeResult,
     _static_ctx: &StaticFanContext,
     _dynamic_ctx: &DynamicFanContext,
     _wait_type: WaitType,
