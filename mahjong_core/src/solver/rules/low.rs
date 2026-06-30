@@ -7,12 +7,12 @@
 use std::collections::HashSet;
 
 use super::super::{DynamicFanContext, StaticFanContext, WaitType, WinMethod};
-use crate::solver::{DecomposeResult, Decomposition};
 use super::helpers::{
     MeldKind, cand, is_chow, is_honor_tile, is_melded_kong, is_pung_or_kong,
     is_terminal_tile, is_wind_tile, meld_info, pair_info, rank_of,
 };
 use super::{FanCandidate, FanType};
+use crate::solver::{DecomposeResult, Decomposition};
 
 // ── 4 points ──────────────────────────────────────────────────
 
@@ -72,10 +72,7 @@ pub(crate) fn two_melded_kongs(
     };
 
     let n = sets.len();
-    let cnt = sets
-        .iter()
-        .filter(|m| is_melded_kong(m))
-        .count();
+    let cnt = sets.iter().filter(|m| is_melded_kong(m)).count();
     if cnt >= 2 {
         vec![cand(FanType::TwoMeldedKongs, 0b1111, false)]
     } else {
@@ -135,7 +132,9 @@ pub(crate) fn prevalent_wind(
     let n = sets.len();
     let target = static_ctx.prevalent_wind.to_tile();
     for (i, m) in sets.iter().enumerate() {
-        if matches!(meld_info(m).kind, MeldKind::Pung) && meld_info(m).tile == target {
+        if matches!(meld_info(m).kind, MeldKind::Pung)
+            && meld_info(m).tile == target
+        {
             return vec![cand(FanType::PrevalentWind, 1 << i, false)];
         }
     }
@@ -155,7 +154,9 @@ pub(crate) fn seat_wind(
     let n = sets.len();
     let target = static_ctx.seat_wind.to_tile();
     for (i, m) in sets.iter().enumerate() {
-        if matches!(meld_info(m).kind, MeldKind::Pung) && meld_info(m).tile == target {
+        if matches!(meld_info(m).kind, MeldKind::Pung)
+            && meld_info(m).tile == target
+        {
             return vec![cand(FanType::SeatWind, 1 << i, false)];
         }
     }
@@ -213,8 +214,12 @@ pub(crate) fn tile_hog(
         }
         let base = meld_info(m).suit as usize * 9;
         match meld_info(m).kind {
-            MeldKind::Pung => counts[base + meld_info(m).rank as usize - 1] += 3,
-            MeldKind::Kong => counts[base + meld_info(m).rank as usize - 1] += 4,
+            MeldKind::Pung => {
+                counts[base + meld_info(m).rank as usize - 1] += 3
+            }
+            MeldKind::Kong => {
+                counts[base + meld_info(m).rank as usize - 1] += 4
+            }
             MeldKind::Chow => {
                 // All three tiles in the chow
                 for t in &meld_info(m).tiles[..3] {
@@ -302,7 +307,9 @@ pub(crate) fn concealed_kong(
     let n = sets.len();
     let mut mask = 0u64;
     for (i, m) in sets.iter().enumerate() {
-        if matches!(meld_info(m).kind, MeldKind::Kong) && meld_info(m).is_concealed {
+        if matches!(meld_info(m).kind, MeldKind::Kong)
+            && meld_info(m).is_concealed
+        {
             mask |= 1 << i;
         }
     }
@@ -495,7 +502,8 @@ pub(crate) fn pung_of_terminals_or_honors(
     let mut mask = 0u64;
     for (i, m) in sets.iter().enumerate() {
         if is_pung_or_kong(m)
-            && (is_terminal_tile(meld_info(m).tile) || is_wind_tile(meld_info(m).tile))
+            && (is_terminal_tile(meld_info(m).tile)
+                || is_wind_tile(meld_info(m).tile))
         {
             mask |= 1 << i;
         }

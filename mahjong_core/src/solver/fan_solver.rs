@@ -1,42 +1,20 @@
-// ═══════════════════════════════════════════════════════════════
-// Search kernel — maximum-weight compatible fan subset
-//
-// Extracted from fan.rs.  Given a set of FanCandidates (each with
-// an exclusion mask, used-set mask, and score), finds the
-// maximum-total-score subset respecting:
-//   - mutual exclusion (FanExclusionSet)
-//   - non-repeat (same sig_key cannot appear twice)
-//   - score-monotonic ordering (non-increasing scores)
-//
-// Returns all solutions achieving the maximum score (ties).
-// ═══════════════════════════════════════════════════════════════
-
 use crate::solver::{
-    FanInstance,
+    FanInstance, FanResult,
     rules::{FanCandidate, FanExclusionSet, FanType},
 };
 
-/// Result of a max-score search: total score + collected fan instances.
-#[derive(Debug, Clone, Default)]
-pub(crate) struct FanSolveResult {
-    pub(crate) total_score: u16,
-    pub(crate) fans: Vec<FanInstance>,
-}
-
-/// Compact signature for deduplication: two candidates with the same
-/// (fan_type, uses_pair, used_set_mask) are considered the same fan
-/// instance under MCR's non-repeat principle and cannot both be selected.
-type SigKey = u64;
+/// Dedup key: (fan_type, uses_pair, used_set_mask).
+/// Two candidates with the same triple are the same fan instance
+/// under MCR's non-repeat principle and cannot both be selected.
+type DedupKey = (FanType, bool, u64);
 
 /// Preprocessed candidate instance for the search.
+/// Score is derived from fan_type.points(), not stored separately.
 #[derive(Debug, Clone)]
 struct SearchInstance {
-    id: usize,
     fan_type: FanType,
-    score: u8,
     used_set_mask: u64,
     uses_pair: bool,
-    sig_key: SigKey,
     excludes_mask: FanExclusionSet,
 }
 
@@ -55,35 +33,25 @@ struct Frame {
 
 struct SearchSpace {
     instances: Vec<SearchInstance>,
-    order: Vec<usize>, // sorted by (-score, id) for deterministic pruning
+    order: Vec<usize>, // sorted by (-points, index) for deterministic pruning
 }
 
 impl SearchSpace {
     fn build(candidates: Vec<FanCandidate>) -> Self {
-        // SigKey layout: [discriminant (16 bits)][uses_pair (1 bit)][used_set_mask (16 bits)]
         let instances: Vec<SearchInstance> = candidates
             .into_iter()
-            .enumerate()
-            .map(|(id, c)| {
-                let sig_key = ((c.fan_type as u16 as u64) << 17)
-                    | ((c.uses_pair as u64) << 16)
-                    | (c.used_set_mask & 0xFFFF);
-                SearchInstance {
-                    id,
-                    fan_type: c.fan_type,
-                    score: c.score,
-                    used_set_mask: c.used_set_mask,
-                    uses_pair: c.uses_pair,
-                    sig_key,
-                    excludes_mask: c.excludes_mask,
-                }
+            .map(|c| SearchInstance {
+                fan_type: c.fan_type,
+                used_set_mask: c.used_set_mask,
+                uses_pair: c.uses_pair,
+                excludes_mask: c.excludes_mask,
             })
             .collect();
 
         let mut order: Vec<usize> = (0..instances.len()).collect();
         order.sort_by_key(|&i| {
             let inst = &instances[i];
-            ((inst.score as i16).wrapping_neg(), inst.id)
+            ((inst.fan_type.points() as i16).wrapping_neg(), i)
         });
 
         Self { instances, order }
@@ -96,7 +64,7 @@ impl SearchSpace {
 /// Enforces:
 ///   1. Score monotonicity (non-increasing scores)
 ///   2. MCR mutual exclusion (excludes_mask)
-///   3. Non-repeat (sig_key dedup)
+///   3. Non-repeat (dedup key)
 ///   4. Account-Once Principle: a set can bridge to remaining sets at most once.
 ///      Only applies to structural fans (≥2 sets). Hand properties (mask = 0) and
 ///      single-set fans (mask has 1 bit) are exempt — they don't combine sets.
@@ -105,21 +73,19 @@ fn is_eligible(
     inst: &SearchInstance,
     excluded_mask: FanExclusionSet,
     max_allowed_score: u8,
-    used_sig_keys: &[SigKey; 32],
-    used_count: usize,
+    used_keys: &[DedupKey],
     used_sets: u64,
     bridge_count: &[u8; 4],
 ) -> bool {
-    if inst.score > max_allowed_score {
+    if inst.fan_type.points() > max_allowed_score {
         return false;
     }
     if (excluded_mask.0 >> (inst.fan_type as u16)) & 1 == 1 {
         return false;
     }
-    for &sk in used_sig_keys[..used_count].iter() {
-        if sk == inst.sig_key {
-            return false;
-        }
+    let key = (inst.fan_type, inst.uses_pair, inst.used_set_mask);
+    if used_keys.contains(&key) {
+        return false;
     }
     // Account-Once: only structural fans (≥2 sets, non-zero)
     let m = inst.used_set_mask;
@@ -140,11 +106,9 @@ fn is_eligible(
     true
 }
 
-/// Get sig_key from a FanInstance (for deduplication).
-fn sig_key_of(inst: &FanInstance) -> SigKey {
-    ((inst.fan_type as u16 as u64) << 17)
-        | ((inst.uses_pair as u64) << 16)
-        | (inst.used_set_mask & 0xFFFF)
+/// Build a dedup key from a FanInstance.
+fn dedup_key_of(inst: &FanInstance) -> DedupKey {
+    (inst.fan_type, inst.uses_pair, inst.used_set_mask)
 }
 
 // ── Search ──
@@ -156,9 +120,9 @@ fn sig_key_of(inst: &FanInstance) -> SigKey {
 /// (scores must be non-increasing) eliminates redundant permutations.
 ///
 /// Returns all solutions achieving the maximum score (ties).
-pub fn solve_max_score(candidates: Vec<FanCandidate>) -> Vec<FanSolveResult> {
+pub fn solve_max_score(candidates: Vec<FanCandidate>) -> Vec<FanResult> {
     if candidates.is_empty() {
-        return vec![FanSolveResult::default()];
+        return vec![FanResult::default()];
     }
 
     let space = SearchSpace::build(candidates);
@@ -166,11 +130,10 @@ pub fn solve_max_score(candidates: Vec<FanCandidate>) -> Vec<FanSolveResult> {
     let order = &space.order;
 
     let mut path: Vec<usize> = Vec::with_capacity(8);
-    let mut used_sig_keys: [SigKey; 32] = [0; 32];
-    let mut used_count: usize = 0;
+    let mut used_keys: Vec<DedupKey> = Vec::with_capacity(32);
 
     let mut excluded_mask = FanExclusionSet::default();
-    let mut max_allowed_score = instances[order[0]].score;
+    let mut max_allowed_score = instances[order[0]].fan_type.points();
     let mut total_score: u16 = 0;
     let mut used_sets: u64 = 0;
     let mut bridge_count: [u8; 4] = [0; 4];
@@ -192,8 +155,7 @@ pub fn solve_max_score(candidates: Vec<FanCandidate>) -> Vec<FanSolveResult> {
                 inst,
                 excluded_mask,
                 max_allowed_score,
-                &used_sig_keys,
-                used_count,
+                &used_keys,
                 used_sets,
                 &bridge_count,
             ) {
@@ -212,13 +174,16 @@ pub fn solve_max_score(candidates: Vec<FanCandidate>) -> Vec<FanSolveResult> {
             });
 
             path.push(inst_id);
-            used_sig_keys[used_count] = inst.sig_key;
-            used_count += 1;
+            used_keys.push((
+                inst.fan_type,
+                inst.uses_pair,
+                inst.used_set_mask,
+            ));
 
             excluded_mask =
                 FanExclusionSet(excluded_mask.0 | inst.excludes_mask.0);
-            max_allowed_score = inst.score;
-            total_score += inst.score as u16;
+            max_allowed_score = inst.fan_type.points();
+            total_score += inst.fan_type.points() as u16;
 
             // Update Account-Once state for structural fans
             let m = inst.used_set_mask;
@@ -259,7 +224,7 @@ pub fn solve_max_score(candidates: Vec<FanCandidate>) -> Vec<FanSolveResult> {
 
                 while path.len() > frame.path_len {
                     path.pop();
-                    used_count -= 1;
+                    used_keys.pop();
                 }
             } else {
                 break;
@@ -267,7 +232,7 @@ pub fn solve_max_score(candidates: Vec<FanCandidate>) -> Vec<FanSolveResult> {
         }
     }
 
-    let results: Vec<FanSolveResult> = best_paths
+    let results: Vec<FanResult> = best_paths
         .into_iter()
         .map(|bp| {
             let fans: Vec<FanInstance> = bp
@@ -278,30 +243,26 @@ pub fn solve_max_score(candidates: Vec<FanCandidate>) -> Vec<FanSolveResult> {
                         fan_type: inst.fan_type,
                         used_set_mask: inst.used_set_mask,
                         uses_pair: inst.uses_pair,
-                        score: inst.score,
                     }
                 })
                 .collect();
-            // Deduplicate by sig_key — the search kernel prevents identical
-            // sig_keys from being selected in one path, but different paths
+            // Deduplicate — the search kernel prevents identical dedup keys
+            // from being selected in one path, but different paths
             // may produce the same set of instances with different ordering.
             let mut seen = std::collections::HashSet::new();
             let mut unique = Vec::new();
             for f in fans {
-                let key = sig_key_of(&f);
+                let key = dedup_key_of(&f);
                 if seen.insert(key) {
                     unique.push(f);
                 }
             }
-            FanSolveResult {
-                total_score: best_score,
-                fans: unique,
-            }
+            FanResult { fans: unique }
         })
         .collect();
 
     if results.is_empty() {
-        vec![FanSolveResult::default()]
+        vec![FanResult::default()]
     } else {
         results
     }
@@ -347,7 +308,7 @@ mod tests {
     fn test_solve_max_score_empty() {
         let results = solve_max_score(vec![]);
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0].total_score, 0);
+        assert_eq!(results[0].total_score(), 0);
         assert!(results[0].fans.is_empty());
     }
 
@@ -358,7 +319,7 @@ mod tests {
             0b1111,
             false,
         )]);
-        assert_eq!(results[0].total_score, 88);
+        assert_eq!(results[0].total_score(), 88);
         assert_eq!(results[0].fans.len(), 1);
     }
 
@@ -369,7 +330,7 @@ mod tests {
             candidate(FanType::AllTerminalsAndHonors, 0b1111, true),
             candidate(FanType::HalfFlush, 0b1111, true),
         ]);
-        assert_eq!(results[0].total_score, 88 + 32 + 6);
+        assert_eq!(results[0].total_score(), 88 + 32 + 6);
         assert_eq!(results[0].fans.len(), 3);
     }
 
@@ -379,7 +340,7 @@ mod tests {
             candidate(FanType::BigFourWinds, 0b1111, false),
             candidate(FanType::LittleFourWinds, 0b0111, true),
         ]);
-        assert_eq!(results[0].total_score, 88);
+        assert_eq!(results[0].total_score(), 88);
         assert_eq!(results[0].fans.len(), 1);
         assert_eq!(results[0].fans[0].fan_type, FanType::BigFourWinds);
     }
@@ -390,7 +351,7 @@ mod tests {
             candidate(FanType::AllTerminalsAndHonors, 0b1111, true),
             candidate(FanType::AllHonors, 0b1111, true),
         ]);
-        assert_eq!(results[0].total_score, 64);
+        assert_eq!(results[0].total_score(), 64);
         assert_eq!(results[0].fans.len(), 1);
         assert_eq!(results[0].fans[0].fan_type, FanType::AllHonors);
     }
@@ -401,7 +362,7 @@ mod tests {
             candidate(FanType::AllPungs, 0b1111, true),
             candidate(FanType::AllPungs, 0b1111, true),
         ]);
-        assert_eq!(results[0].total_score, 6);
+        assert_eq!(results[0].total_score(), 6);
         assert_eq!(results[0].fans.len(), 1);
     }
 
@@ -413,7 +374,7 @@ mod tests {
             candidate(FanType::HalfFlush, 0b1111, true),
             candidate(FanType::AllPungs, 0b1111, true),
         ]);
-        assert_eq!(results[0].total_score, 88 + 32 + 6);
+        assert_eq!(results[0].total_score(), 88 + 32 + 6);
         assert_eq!(results[0].fans.len(), 3);
     }
 }

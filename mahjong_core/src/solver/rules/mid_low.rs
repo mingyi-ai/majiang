@@ -7,12 +7,12 @@
 use std::collections::HashSet;
 
 use super::super::{DynamicFanContext, StaticFanContext, WaitType, WinMethod};
-use crate::solver::{DecomposeResult, Decomposition};
 use super::helpers::{
-    MeldKind, all_in_range, cand, is_chow, is_pung_or_kong, is_reversible_tile,
-    meld_info, pair_info, rank_of,
+    MeldKind, all_in_range, cand, is_chow, is_pung_or_kong,
+    is_reversible_tile, meld_info, pair_info, rank_of,
 };
 use super::{FanCandidate, FanType};
+use crate::solver::{DecomposeResult, Decomposition};
 
 // ── 12 points ──────────────────────────────────────────────────
 
@@ -63,7 +63,9 @@ pub(crate) fn upper_four(
         _ => return vec![],
     };
     match &decomp.decompositions {
-        Decomposition::Standard { pair, sets } if all_in_range(sets.as_slice(), pair, 6, 9) => {
+        Decomposition::Standard { pair, sets }
+            if all_in_range(sets.as_slice(), pair, 6, 9) =>
+        {
             vec![cand(FanType::UpperFour, 0, true)]
         }
         Decomposition::SevenPairs { pairs } => {
@@ -91,7 +93,9 @@ pub(crate) fn lower_four(
         _ => return vec![],
     };
     match &decomp.decompositions {
-        Decomposition::Standard { pair, sets } if all_in_range(sets.as_slice(), pair, 1, 4) => {
+        Decomposition::Standard { pair, sets }
+            if all_in_range(sets.as_slice(), pair, 1, 4) =>
+        {
             vec![cand(FanType::LowerFour, 0, true)]
         }
         Decomposition::SevenPairs { pairs } => {
@@ -185,9 +189,9 @@ pub(crate) fn reversible_tiles(
         Standard => {
             let n = sets.len();
             let all_rev = sets.iter().all(|m| match meld_info(m).kind {
-                MeldKind::Chow => {
-                    meld_info(m).tiles[..3].iter().all(|&t| is_reversible_tile(t))
-                }
+                MeldKind::Chow => meld_info(m).tiles[..3]
+                    .iter()
+                    .all(|&t| is_reversible_tile(t)),
                 _ => is_reversible_tile(meld_info(m).tile),
             }) && is_reversible_tile(pair_info(pair).tile);
             if all_rev {
@@ -357,7 +361,10 @@ pub(crate) fn two_concealed_kongs(
     let n = sets.len();
     let cnt = sets
         .iter()
-        .filter(|m| matches!(meld_info(m).kind, MeldKind::Kong) && meld_info(m).is_concealed)
+        .filter(|m| {
+            matches!(meld_info(m).kind, MeldKind::Kong)
+                && meld_info(m).is_concealed
+        })
         .count();
     if cnt >= 2 {
         vec![cand(FanType::TwoConcealedKongs, 0b1111, false)]

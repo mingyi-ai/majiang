@@ -238,7 +238,12 @@ pub(crate) fn is_chow(m: &Meld) -> bool {
 // ── FanCandidate factory ───────────────────────────────────────
 
 /// Check if all melds and the pair satisfy a rank range.
-pub(crate) fn all_in_range(sets: &[Meld], pair: &Pair, lo: u8, hi: u8) -> bool {
+pub(crate) fn all_in_range(
+    sets: &[Meld],
+    pair: &Pair,
+    lo: u8,
+    hi: u8,
+) -> bool {
     sets.iter().all(|m| {
         let r = meld_info(m).rank;
         lo <= r && r <= hi

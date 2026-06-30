@@ -59,9 +59,8 @@ pub struct DynamicFanContext {
 #[derive(Debug, Clone)]
 pub struct FanInstance {
     pub fan_type: FanType,
-    pub score: u8,
-    pub used_set_mask: u64,
-    pub uses_pair: bool,
+    pub(super) used_set_mask: u64,
+    pub(super) uses_pair: bool,
 }
 
 /// Result of a fan search.
@@ -72,7 +71,7 @@ pub struct FanResult {
 
 impl FanResult {
     pub fn total_score(&self) -> u8 {
-        self.fans.iter().map(|f| f.score).sum::<u8>()
+        self.fans.iter().map(|f| f.fan_type.points()).sum::<u8>()
     }
 }
 

@@ -7,12 +7,12 @@
 use std::collections::HashSet;
 
 use super::super::{DynamicFanContext, StaticFanContext, WaitType};
-use crate::solver::{DecomposeResult, Decomposition};
 use super::helpers::{
     MeldKind, all_in_range, cand, is_chow, is_even_rank, is_honor_tile,
     is_pung_or_kong, is_terminal_tile, meld_info, pair_info, rank_of,
 };
 use super::{FanCandidate, FanType};
+use crate::solver::{DecomposeResult, Decomposition};
 use crate::structs::Tile;
 
 // ── 32 points ──────────────────────────────────────────────────
@@ -79,7 +79,12 @@ pub(crate) fn three_kongs(
         _ => return vec![],
     };
 
-    if sets.iter().filter(|m| matches!(meld_info(m).kind, MeldKind::Kong)).count() as u8 >= 3 {
+    if sets
+        .iter()
+        .filter(|m| matches!(meld_info(m).kind, MeldKind::Kong))
+        .count() as u8
+        >= 3
+    {
         vec![cand(FanType::ThreeKongs, 0b1111, false)]
     } else {
         vec![]
@@ -261,7 +266,9 @@ pub(crate) fn upper_tiles(
         _ => return vec![],
     };
     match &decomp.decompositions {
-        Decomposition::Standard { pair, sets } if all_in_range(sets.as_slice(), pair, 7, 9) => {
+        Decomposition::Standard { pair, sets }
+            if all_in_range(sets.as_slice(), pair, 7, 9) =>
+        {
             vec![cand(FanType::UpperTiles, 0, true)]
         }
         Decomposition::SevenPairs { pairs } => {
@@ -289,7 +296,9 @@ pub(crate) fn middle_tiles(
         _ => return vec![],
     };
     match &decomp.decompositions {
-        Decomposition::Standard { pair, sets } if all_in_range(sets.as_slice(), pair, 4, 6) => {
+        Decomposition::Standard { pair, sets }
+            if all_in_range(sets.as_slice(), pair, 4, 6) =>
+        {
             vec![cand(FanType::MiddleTiles, 0, true)]
         }
         Decomposition::SevenPairs { pairs } => {
@@ -317,7 +326,9 @@ pub(crate) fn lower_tiles(
         _ => return vec![],
     };
     match &decomp.decompositions {
-        Decomposition::Standard { pair, sets } if all_in_range(sets.as_slice(), pair, 1, 3) => {
+        Decomposition::Standard { pair, sets }
+            if all_in_range(sets.as_slice(), pair, 1, 3) =>
+        {
             vec![cand(FanType::LowerTiles, 0, true)]
         }
         Decomposition::SevenPairs { pairs } => {
@@ -384,10 +395,10 @@ pub(crate) fn three_suited_terminal_chows(
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     let (pair, sets) = match &decomp.decompositions {
-    Decomposition::Standard { pair, sets } => (pair, sets),
-    _ => return vec![],
-};
-if sets.len() != 4 {
+        Decomposition::Standard { pair, sets } => (pair, sets),
+        _ => return vec![],
+    };
+    if sets.len() != 4 {
         return vec![];
     }
     if pair_info(pair).is_honor || pair_info(pair).rank != 5 {
@@ -482,7 +493,9 @@ pub(crate) fn all_fives(
     let n = sets.len();
     let f = |r: u8| r == 5;
     let ok = sets.iter().all(|m| match meld_info(m).kind {
-        MeldKind::Chow => meld_info(m).tiles[..3].iter().any(|&t| rank_of(t) == 5),
+        MeldKind::Chow => {
+            meld_info(m).tiles[..3].iter().any(|&t| rank_of(t) == 5)
+        }
         _ => f(meld_info(m).rank),
     }) && f(pair_info(pair).rank);
     if ok {
@@ -507,7 +520,9 @@ pub(crate) fn triple_pung(
         .iter()
         .enumerate()
         .filter(|(_, m)| is_pung_or_kong(m))
-        .map(|(i, m)| (i, meld_info(m).tile, meld_info(m).rank, meld_info(m).suit))
+        .map(|(i, m)| {
+            (i, meld_info(m).tile, meld_info(m).rank, meld_info(m).suit)
+        })
         .collect();
     for i in 0..p.len() {
         for j in i + 1..p.len() {

@@ -5,12 +5,12 @@
 #![allow(non_snake_case)]
 
 use super::super::{DynamicFanContext, StaticFanContext, WaitType};
-use crate::solver::{DecomposeResult, Decomposition};
 use super::helpers::{
     MeldKind, cand, is_chow, is_green_tile, is_pung_or_kong, is_terminal_tile,
     meld_info, pair_info, rank_of, suit_of,
 };
 use super::{FanCandidate, FanType};
+use crate::solver::{DecomposeResult, Decomposition};
 use crate::structs::Tile;
 
 // ── 88 points ──────────────────────────────────────────────────
@@ -22,10 +22,10 @@ pub(crate) fn big_four_winds(
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     let (pair, sets) = match &decomp.decompositions {
-    Decomposition::Standard { pair, sets } => (pair, sets),
-    _ => return vec![],
-};
-if sets.len() != 4 {
+        Decomposition::Standard { pair, sets } => (pair, sets),
+        _ => return vec![],
+    };
+    if sets.len() != 4 {
         return vec![];
     }
     let n = sets.len();
@@ -170,7 +170,12 @@ pub(crate) fn four_kongs(
     if !matches!(decomp.decompositions, Decomposition::Standard { .. }) {
         return vec![];
     }
-    if sets.iter().filter(|m| matches!(meld_info(m).kind, MeldKind::Kong)).count() as u8 == 4 {
+    if sets
+        .iter()
+        .filter(|m| matches!(meld_info(m).kind, MeldKind::Kong))
+        .count() as u8
+        == 4
+    {
         return vec![cand(FanType::FourKongs, 0b1111, false)];
     }
     vec![]
@@ -342,10 +347,10 @@ pub(crate) fn four_concealed_pungs(
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     let (pair, sets) = match &decomp.decompositions {
-    Decomposition::Standard { pair, sets } => (pair, sets),
-    _ => return vec![],
-};
-if sets.len() != 4 {
+        Decomposition::Standard { pair, sets } => (pair, sets),
+        _ => return vec![],
+    };
+    if sets.len() != 4 {
         return vec![];
     }
     let n = sets.len();
@@ -366,10 +371,10 @@ pub(crate) fn pure_terminal_chows(
     _wait_type: WaitType,
 ) -> Vec<FanCandidate> {
     let (pair, sets) = match &decomp.decompositions {
-    Decomposition::Standard { pair, sets } => (pair, sets),
-    _ => return vec![],
-};
-if sets.len() != 4 {
+        Decomposition::Standard { pair, sets } => (pair, sets),
+        _ => return vec![],
+    };
+    if sets.len() != 4 {
         return vec![];
     }
     if pair_info(pair).is_honor || pair_info(pair).rank != 5 {
